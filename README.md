@@ -3,7 +3,7 @@
   <span style="font-size:2.5em; vertical-align: middle;"><b>Browser Tabs</b></span>
 </p></h1>
 
-## Backup Long-Open Tab (Chrome/Firefox extension)
+### Backup Long-Open Tab (Chrome/Firefox extension)
 
 Automatically and safely backup browser tabs that have been open for a long time (default: 7+ days, configurable). Prevent accidental loss of important tabs you want to revisit later.
 
