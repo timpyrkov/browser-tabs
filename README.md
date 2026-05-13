@@ -1,9 +1,9 @@
 <h1><p align="left">
-  <img src="https://github.com/timpyrkov/firefox-tabs-bk/blob/master/icons/icon-48.png?raw=true" alt="logo" height="25" style="vertical-align: middle; margin-right: 10px;">
+  <img src="https://github.com/timpyrkov/browser-tabs/blob/master/src/icons/icon-128.png?raw=true" alt="Browser Tabs logo" height="25" style="vertical-align: middle; margin-right: 10px;">
   <span style="font-size:2.5em; vertical-align: middle;"><b>Browser Tabs</b></span>
 </p></h1>
 
-Backup Long-Open Tab (Chrome/Firefox extension)
+## Backup Long-Open Tab (Chrome/Firefox extension)
 
 Automatically and safely backup browser tabs that have been open for a long time (default: 7+ days, configurable). Prevent accidental loss of important tabs you want to revisit later.
 
