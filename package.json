@@ -1,0 +1,16 @@
+{
+  "name": "tab-history-long-open-tabs",
+  "version": "2.0.0",
+  "description": "Sidebar history of long-open browser tabs: how long each tab stayed open, searchable and sortable.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node --check src/defaults.js && node --check src/tabs-logic.js && node --check src/background.js && node --check src/sidebar.js && node --check src/theme.js && node --check src/i18n.js && for f in src/locales/*.js; do node --check \"$f\"; done && node --check build.cjs",
+    "build:firefox": "node build.cjs firefox",
+    "build:chrome": "node build.cjs chrome",
+    "build": "npm run lint && npm run build:firefox && npm run build:chrome",
+    "clean": "rm -rf dist"
+  },
+  "author": "Tim Pyrkov",
+  "license": "MIT"
+}

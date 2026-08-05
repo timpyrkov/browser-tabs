@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tab History</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="defaults.js"></script>
+  <script src="tabs-logic.js"></script>
+  <script src="theme.js"></script>
+  <script type="module" src="sidebar.js"></script>
+  <style>
+    /* Override the shared body layout meant for popup/options cards. */
+    body {
+      display: block;
+      margin: 0;
+      padding: 1rem;
+      background-color: var(--background);
+      color: var(--foreground);
+      font-size: 14px;
+      width: auto;
+      min-width: 0;
+    }
+
+    .sidebar-page {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.4em;
+      flex-wrap: wrap;
+      padding-bottom: 0.6em;
+      margin-bottom: 0.75em;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    .toolbar-logo {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      margin-right: 0.6em;
+    }
+
+    .toolbar select,
+    .toolbar input,
+    .toolbar button {
+      height: 32px;
+      box-sizing: border-box;
+    }
+
+    .toolbar select {
+      width: auto;
+      min-width: 0;
+      padding: 0 6px;
+      font-size: 12px;
+      flex: 0 0 auto;
+    }
+
+    .lang-select {
+      min-width: 68px;
+      flex: 0 0 auto;
+      padding-left: 4px;
+      padding-right: 2px;
+    }
+
+    /* Wrapper so the clear button can sit inside the field. */
+    .search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      flex: 1 1 120px;
+      width: 0;
+      min-width: 80px;
+      height: 32px;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 32px;
+      box-sizing: border-box;
+      padding: 0 30px 0 10px;
+      font-size: 13px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      color: var(--foreground);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--input-focus);
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 6px;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 50%;
+      background: var(--neutral-5);
+      color: var(--neutral-11);
+      font-size: 12px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .search-clear:hover {
+      background: var(--color-error);
+      color: #2a0f0a;
+    }
+
+    .search-clear[hidden] {
+      display: none;
+    }
+
+    /* Extra breathing room between logical control groups. */
+    .toolbar-group-gap {
+      margin-left: 1.2em;
+    }
+
+    /* Second toolbar line: sort controls. */
+    .sort-row {
+      width: 100%;
+      order: 10;
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-top: 0.5em;
+    }
+
+    .sort-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .sort-row select {
+      flex: 0 1 auto;
+    }
+
+    .sort-row .spacer {
+      flex: 1 1 auto;
+    }
+
+    .btn-sm {
+      padding: 0 14px;
+      font-size: 13px;
+    }
+
+    /* .btn sets display:flex, which would defeat the hidden attribute. */
+    .btn[hidden] {
+      display: none;
+    }
+
+    /* Destructive action: red, distinct from the gold primary. */
+    .btn-red {
+      background: linear-gradient(180deg, #e0796b, #c8503f 55%, #9c3a2c);
+      border-color: #9c3a2c;
+      color: #2a0f0a;
+    }
+
+    .btn-red:hover:not(:disabled), .btn-red:focus-visible {
+      filter: brightness(1.08);
+      box-shadow: 0 0 12px rgba(200, 80, 63, 0.55);
+      outline: none;
+    }
+
+    .icon-btn {
+      width: 32px;
+      padding: 0;
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    .toolbar .theme-toggle {
+      width: 32px;
+      height: 32px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+
+    /* Collapsible settings panel inside the toolbar (twin-project pattern). */
+    .settings-panel {
+      width: 100%;
+      order: 11;
+      box-sizing: border-box;
+      margin-top: 0.5em;
+      padding: 0.75em 0.9em;
+      background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .settings-panel[hidden] {
+      display: none;
+    }
+
+    .settings-panel .form-group {
+      margin-bottom: 0.6em;
+    }
+
+    .settings-panel .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .settings-panel label {
+      font-size: 12px;
+    }
+
+    .settings-panel input,
+    .settings-panel textarea {
+      font-size: 13px;
+      padding: 6px 8px;
+    }
+
+    .settings-panel textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background-color: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--foreground);
+      border-radius: 8px;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    .settings-panel textarea:focus {
+      outline: none;
+      border-color: var(--input-focus);
+    }
+
+    .settings-panel .checkbox-group {
+      gap: 0.5em;
+    }
+
+    /* Keep the box square inside .toolbar, whose rules would otherwise
+       stretch it to the 32px control height. */
+    .settings-panel .checkbox-group input[type="checkbox"] {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      margin: 0;
+    }
+
+    .settings-panel .checkbox-group label {
+      margin-bottom: 0;
+      cursor: pointer;
+    }
+
+    input[type="time"] {
+      background-color: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--foreground);
+      border-radius: 8px;
+      color-scheme: dark;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    :root[data-theme="light"] input[type="time"] {
+      color-scheme: light;
+    }
+
+    .results-pane {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      box-sizing: border-box;
+      overflow-y: auto;
+      background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+      padding: 1em;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    :root[data-theme="light"] .results-pane {
+      background: var(--neutral-1);
+    }
+
+    .results-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .summary-bar {
+      display: flex;
+      gap: 0.75em;
+      margin-bottom: 0.75em;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .summary-bar strong {
+      color: var(--foreground);
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: 0.4em;
+      margin-bottom: 0.75em;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .chip {
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 999px;
+    }
+
+    .chip.active {
+      border-color: var(--primary-1);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--primary-1) 30%, transparent);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0.4em 0;
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+
+    .section-header:hover {
+      color: var(--foreground);
+    }
+
+    .section-header .count {
+      color: var(--primary-1);
+    }
+
+    .section-caret {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      font-size: 10px;
+    }
+
+    .section-collapsed .section-caret {
+      transform: rotate(-90deg);
+    }
+
+    .section-collapsed + .section-body {
+      display: none;
+    }
+
+    .log-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45em;
+      padding: 0.55em 0.2em;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .log-row:hover {
+      background: color-mix(in srgb, var(--primary-1) 6%, transparent);
+    }
+
+    .log-fav {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      border-radius: 3px;
+      background: var(--neutral-4);
+      flex-shrink: 0;
+    }
+
+    /* No favicon: leave quiet empty space rather than a grey block. */
+    .log-fav-empty {
+      background: transparent;
+    }
+
+    .log-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .log-title {
+      font-weight: 600;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* URL line: domain kept whole and legible (it is what you scan for), the
+       rest muted. Middle-truncated in JS so the distinctive tail survives;
+       ellipsis here is only the narrow-window fallback. */
+    .log-url {
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-domain {
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .log-domain:hover {
+      color: var(--primary-1);
+      text-decoration: underline;
+    }
+
+    .log-path {
+      color: var(--neutral-7);
+    }
+
+    .log-timing {
+      font-size: 11px;
+      color: var(--text-secondary);
+      opacity: 0.8;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* GitHub-style label chips, colour-coded per label name. */
+    .label-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 3px;
+    }
+
+    .label-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      background: color-mix(in srgb, currentColor 16%, transparent);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .label-chip:hover {
+      background: color-mix(in srgb, currentColor 30%, transparent);
+    }
+
+    .label-chip .chip-x {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .label-chip .chip-x:hover {
+      opacity: 1;
+    }
+
+    .label-editor,
+    .rename-editor {
+      display: flex;
+      align-items: center;
+      gap: 0.3em;
+      margin-top: 4px;
+    }
+
+    .label-editor[hidden] {
+      display: none;
+    }
+
+    .label-editor input,
+    .rename-editor input {
+      flex: 1;
+      min-width: 0;
+      height: 24px;
+      box-sizing: border-box;
+      padding: 0 8px;
+      font-size: 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      color: var(--foreground);
+    }
+
+    .label-editor input:focus,
+    .rename-editor input:focus {
+      outline: none;
+      border-color: var(--input-focus);
+    }
+
+    /* Marks a title the user edited, so it is clear why scans leave it alone. */
+    .title-custom::after {
+      content: '✎';
+      margin-left: 5px;
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .undo-link {
+      background: none;
+      border: none;
+      padding: 0 0 0 6px;
+      color: var(--primary-1);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .log-status {
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .status-open { color: var(--color-success); }
+    .status-closed { color: var(--color-warning); }
+    .status-young { color: var(--primary-1); }
+
+    .row-btn {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .row-btn:hover {
+      background: var(--neutral-4);
+      color: var(--foreground);
+    }
+
+    .row-btn.row-btn-delete:hover {
+      color: var(--color-error);
+    }
+
+    .welcome-text,
+    .loading-text {
+      color: var(--text-secondary);
+      font-style: italic;
+      text-align: center;
+      margin-top: 2em;
+    }
+
+    .error-text {
+      color: var(--error);
+      font-style: italic;
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .status-line {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-style: italic;
+      text-align: center;
+      margin-top: 0.5em;
+      flex-shrink: 0;
+      min-height: 1.2em;
+    }
+
+    /* Sits directly under the last listed row (inside the scroll area), not
+       pinned to the bottom of the sidebar window. */
+    .actions-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6em;
+      margin-top: 0.8em;
+      padding-top: 0.8em;
+      padding-left: 0.2em;
+      padding-right: 0.2em;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .actions-bar .btn {
+      height: 32px;
+    }
+
+    .export-wrap {
+      position: relative;
+      display: flex;
+    }
+
+    /* Small anchored menu for export format choice. */
+    .export-menu {
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3em;
+      background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 0.5em;
+      z-index: 100;
+    }
+
+    .export-menu[hidden] {
+      display: none;
+    }
+
+    /* Import replace/append dialog. */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .modal-overlay[hidden] {
+      display: none;
+    }
+
+    .modal-card {
+      background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 1.2em;
+      max-width: 300px;
+      text-align: center;
+    }
+
+    .modal-card p {
+      margin: 0 0 1em;
+      font-size: 13px;
+      color: var(--foreground);
+    }
+
+    .modal-card .file-name {
+      color: var(--primary-1);
+      font-weight: 600;
+      word-break: break-all;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 0.5em;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-page">
+    <div class="toolbar">
+      <img class="toolbar-logo" src="icons/icon-32.png" alt="Tab History" />
+
+      <select id="uiLangSelect" class="lang-select" title="Interface language"></select>
+
+      <div class="search-wrap">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search title, URL, domain, label…" />
+        <button id="searchClear" class="search-clear" title="Clear search" hidden>&#10005;</button>
+      </div>
+
+      <button id="settingsBtn" class="btn btn-grey icon-btn" title="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+        </svg>
+      </button>
+
+      <button id="themeToggle" class="theme-toggle toolbar-group-gap" title="Toggle theme">&#9728;&#65039;</button>
+
+      <div class="sort-row">
+        <span class="sort-label" id="sortLabel">Sort:</span>
+        <select id="sortSelect" title="Sort by">
+          <option value="duration">Duration</option>
+          <option value="domain">Url</option>
+          <option value="title">Name</option>
+          <option value="label">Tag</option>
+        </select>
+        <button id="sortDirBtn" class="btn btn-grey icon-btn" title="Sort direction">&#8595;</button>
+        <span class="spacer"></span>
+        <button id="deleteMatchingBtn" class="btn btn-red btn-sm" hidden>Delete shown</button>
+      </div>
+
+      <div id="settingsPanel" class="settings-panel" hidden>
+        <div class="form-group">
+          <label for="minDays" id="minDaysLabel">Days open before a tab enters history</label>
+          <input type="number" id="minDays" min="0" max="365" step="1" value="7" />
+        </div>
+        <div class="form-group">
+          <label for="scanTime" id="scanTimeLabel">Daily scan time</label>
+          <input type="time" id="scanTime" value="05:00" />
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="excludePrivate" />
+          <label for="excludePrivate" id="excludePrivateLabel">Exclude private windows</label>
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="excludePinned" />
+          <label for="excludePinned" id="excludePinnedLabel">Exclude pinned tabs</label>
+        </div>
+        <div class="form-group">
+          <label for="gapToleranceDays" id="gapToleranceLabel">Reopened within N days continues the count</label>
+          <input type="number" id="gapToleranceDays" min="0" max="3650" step="1" value="30" />
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="ignoreUrlFragment" />
+          <label for="ignoreUrlFragment" id="ignoreUrlFragmentLabel">Ignore #fragment in URLs</label>
+        </div>
+        <div class="form-group">
+          <label for="excludeList" id="excludeListLabel">Never track these sites (one per line)</label>
+          <textarea id="excludeList" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="maxTitleLength" id="maxTitleLengthLabel">Max title length</label>
+          <input type="number" id="maxTitleLength" min="20" max="300" step="10" value="100" />
+        </div>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="syncEnabled" />
+          <label for="syncEnabled" id="syncEnabledLabel">Sync settings and labels</label>
+        </div>
+        <div class="form-group" id="syncNoteGroup">
+          <span class="hint-text" id="syncNote"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-pane">
+      <div class="summary-bar" id="summaryBar">
+        <span><span id="summaryHistoryLabel">History</span>: <strong id="countHistory">0</strong></span>
+        <span><span id="summaryOpenLabel">Open now</span>: <strong id="countOpen">0</strong></span>
+        <span id="scanInfo"></span>
+      </div>
+      <div class="filter-chips" id="filterChips">
+        <button class="btn btn-grey chip active" data-show="all" id="filterAllBtn">All</button>
+        <button class="btn btn-grey chip" data-show="open" id="filterOpenBtn">Still open</button>
+        <button class="btn btn-grey chip" data-show="closed" id="filterClosedBtn">Closed</button>
+      </div>
+
+      <div class="results-scroll">
+        <div class="section-header" id="historyHeader">
+          <span class="section-caret">&#9660;</span>
+          <span id="historyHeaderLabel">History (long-open tabs)</span>
+          <span class="count" id="historyCount"></span>
+        </div>
+        <div class="section-body" id="historyList"></div>
+
+        <div class="section-header" id="openHeader" style="margin-top: 0.8em;">
+          <span class="section-caret">&#9660;</span>
+          <span id="openHeaderLabel">Open tabs (not yet in history)</span>
+          <span class="count" id="openCount"></span>
+        </div>
+        <div class="section-body" id="openList"></div>
+
+        <div class="welcome-text" id="welcomeText" hidden></div>
+
+        <div class="status-line" id="statusLine"></div>
+
+        <div class="actions-bar">
+          <button id="scanNowBtn" class="btn btn-green btn-sm">Scan now</button>
+          <button id="importBtn" class="btn btn-green btn-sm">Import</button>
+          <div class="export-wrap">
+            <button id="exportBtn" class="btn btn-yellow btn-sm">Export</button>
+            <div id="exportMenu" class="export-menu" hidden>
+              <button id="exportNdjsonBtn" class="btn btn-grey btn-sm">NDJSON</button>
+              <button id="exportCsvBtn" class="btn btn-grey btn-sm">CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="labelSuggestions"></datalist>
+  <input type="file" id="importFile" accept=".ndjson,.json,.txt" hidden />
+
+  <div id="importModal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <p id="importPrompt"></p>
+      <div class="modal-buttons">
+        <button id="importAppendBtn" class="btn btn-green btn-sm">Append</button>
+        <button id="importReplaceBtn" class="btn btn-red btn-sm">Replace</button>
+        <button id="importCancelBtn" class="btn btn-grey btn-sm">Cancel</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

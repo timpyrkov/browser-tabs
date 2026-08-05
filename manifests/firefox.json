@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Tab History for Long-Open Tabs",
+  "version": "2.0",
+  "description": "Keeps a history of tabs that stayed open for days: how long each was open, searchable and sortable in a sidebar.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tab-history@timpyrkov",
+      "strict_min_version": "115.0"
+    }
+  },
+  "background": {
+    "scripts": ["defaults.js", "tabs-logic.js", "background.js"]
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms"
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
+    "default_title": "Tab History"
+  },
+  "sidebar_action": {
+    "default_title": "Tab History",
+    "default_panel": "sidebar.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  }
+}

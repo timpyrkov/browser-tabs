@@ -1,0 +1,480 @@
+/* styles.css */
+/* Styles for the extension's options/settings page */
+/* Beginner-friendly documentation included */
+
+/* =========================================================================
+   CUSTOM COLOR PALETTES & UTILITIES
+============================================================================ */
+:root {
+  /* Color palette (dark theme) */
+  --neutral-1: #0d0d0d;
+  --neutral-2: #101010;
+  --neutral-3: #212121;
+  --neutral-4: #343434;
+  --neutral-5: #4e4e4e;
+  --neutral-6: #6e6e6e;
+  --neutral-7: #919191;
+  --neutral-8: #b1b1b1;
+  --neutral-9: #cbcbcb;
+  --neutral-10: #dedede;
+  --neutral-11: #eaeaea;
+  --neutral-12: #f2f2f2;
+  --primary-1: #d9a62e;
+  --primary-2: #d0962f;
+  --primary-3: #d48822;
+  --primary-4: #d0791e;
+  --primary-5: #cb6a1b;
+  --secondary-1: #babd2d;
+  --secondary-2: #9db341;
+  --secondary-3: #88ae48;
+  --secondary-4: #76a055;
+  --secondary-5: #6b905d;
+  --color-error: #fb5e4b;
+  --color-warning: #d8a429;
+  --color-success: #82b072;
+  --color-message: #7b9b8f;
+  --color-note: #b27182;
+  --category-1: #fe8522;
+  --category-2: #d8a429;
+  --category-3: #babd2d;
+  --category-4: #82b072;
+  --category-5: #7b9b8f;
+  --category-6: #b27182;
+  --category-7: #fb5e4b;
+  --primary-light: #e3be67;
+  --primary-dark: #944d14;
+  --secondary-light: #cccf65;
+  --secondary-dark: #4e6a44;
+
+  /* Semantic aliases used throughout the UI */
+  --accent-1: var(--secondary-1);
+  --accent-2: var(--secondary-3);
+  --accent-3: var(--secondary-5);
+  --gold-light: var(--primary-light);
+  --gold-medium: var(--primary-2);
+  --gold-dark: var(--primary-4);
+  --gold-darker: var(--primary-dark);
+  --background: var(--neutral-1);
+  --surface: var(--neutral-2);
+  --surface-top: var(--neutral-2);
+  --surface-bottom: var(--neutral-4);
+  --border: var(--neutral-4);
+  --shadow: 0 2px 8px rgba(0,0,0,0.25);
+  --foreground: var(--neutral-11);
+  --text-secondary: var(--neutral-8);
+  --input-bg: var(--neutral-2);
+  --input-border: var(--neutral-5);
+  --input-focus: var(--primary-1);
+  --success: var(--color-success);
+  --error: var(--color-error);
+  --warning: var(--color-warning);
+  --info: var(--color-message);
+}
+
+/* Light theme: opt-in via [data-theme="light"] on <html>, set by theme.js.
+   Dark (the :root defaults above) is always the default on first run,
+   regardless of OS preference — see theme.js. */
+:root[data-theme="light"] {
+  --neutral-1: #f2f2f2;
+  --neutral-2: #eaeaea;
+  --neutral-3: #dedede;
+  --neutral-4: #cbcbcb;
+  --neutral-5: #b1b1b1;
+  --neutral-6: #919191;
+  --neutral-7: #6e6e6e;
+  --neutral-8: #4e4e4e;
+  --neutral-9: #343434;
+  --neutral-10: #212121;
+  --neutral-11: #101010;
+  --neutral-12: #0d0d0d;
+
+  --background: var(--neutral-1);
+  --surface: var(--neutral-2);
+  --surface-top: var(--neutral-2);
+  --surface-bottom: var(--neutral-1);
+  --border: var(--neutral-4);
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --foreground: var(--neutral-11);
+  --text-secondary: var(--neutral-8);
+  --input-bg: var(--neutral-2);
+  --input-border: var(--neutral-5);
+}
+
+/* =========================================================================
+   THEME TOGGLE
+============================================================================ */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.theme-toggle:hover, .theme-toggle:focus-visible {
+  border-color: var(--primary-1);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary-1) 40%, transparent);
+  outline: none;
+}
+.theme-toggle:active {
+  transform: scale(0.92);
+}
+
+/* Always keep a dark button background regardless of theme, since the
+   moon icon (shown in light theme, to switch back to dark) is barely
+   visible on a light background. */
+:root[data-theme="light"] .theme-toggle {
+  background: #101010;
+  border-color: #343434;
+  color: #f2f2f1;
+}
+
+/* =========================================================================
+   GRADIENT TEXT STYLES
+============================================================================ */
+/* Gradient text utility */
+.gradient-text {
+background: linear-gradient(60deg, var(--primary-1), var(--primary-2), var(--primary-3));
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+color: transparent;
+}
+.gradient-text-accent {
+background: linear-gradient(60deg, var(--accent-1), var(--accent-2), var(--accent-3));
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+color: transparent;
+}
+
+/* =========================================================================
+   CUSTOM CHECKBOX STYLES
+============================================================================ */
+/* Custom checkbox appearance */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--gold-medium);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  margin-right: 8px;
+}
+
+/* Checked state - Gold fill */
+input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-medium));
+  border-color: var(--gold-dark);
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+}
+
+/* Checkmark for checked state */
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #111;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Hover state */
+input[type="checkbox"]:hover {
+  border-color: var(--gold-light);
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.2);
+}
+
+/* Focus state */
+input[type="checkbox"]:focus {
+  outline: none;
+  border-color: var(--gold-light);
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.2);
+}
+
+/* Disabled state */
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================================================================
+   CUSTOM RADIO BUTTON STYLES
+============================================================================ */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--primary-1);
+  border-radius: 50%;
+  background: var(--surface);
+  cursor: pointer;
+  position: relative;
+  margin-right: 8px;
+  vertical-align: middle;
+  transition: all 0.2s ease;
+}
+
+input[type="radio"]:checked {
+  border-color: var(--primary-2);
+  background: radial-gradient(circle at center, var(--primary-2) 40%, var(--surface) 40%);
+}
+
+input[type="radio"]:hover {
+  border-color: var(--primary-1);
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--foreground);
+  margin-bottom: 0.5em;
+  cursor: pointer;
+}
+
+/* =========================================================================
+   CUSTOM BUTTON STYLES
+============================================================================ */
+.save-container {
+  display: flex;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Space between buttons */
+  margin-top: 1rem;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: var(--shadow);
+  position: relative;
+  text-decoration: none;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+  box-shadow: none;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Primary (gold/orange gradient) — matches the "Active" primary-accent button
+   in the reference palette screenshot: solid gradient fill, dark text. */
+.btn-green {
+  background: linear-gradient(180deg, var(--primary-light), var(--primary-2) 55%, var(--primary-4));
+  border-color: var(--primary-4);
+  color: #241a03;
+}
+.btn-green:hover:not(:disabled), .btn-green:focus-visible {
+  filter: brightness(1.08);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary-1) 55%, transparent);
+  outline: none;
+}
+
+/* Secondary (olive/green gradient) accent button. */
+.btn-yellow {
+  background: linear-gradient(180deg, var(--secondary-light), var(--secondary-2) 55%, var(--secondary-5));
+  border-color: var(--secondary-5);
+  color: #101a05;
+}
+.btn-yellow:hover:not(:disabled), .btn-yellow:focus-visible {
+  filter: brightness(1.08);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-2) 55%, transparent);
+  outline: none;
+}
+
+/* Neutral/ghost button (Settings, Default-style actions). */
+.btn-grey {
+  background: linear-gradient(135deg, var(--neutral-4), var(--neutral-3));
+  border-color: var(--neutral-5);
+  color: var(--foreground);
+}
+.btn-grey:hover:not(:disabled), .btn-grey:focus-visible {
+  filter: brightness(1.15);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--neutral-6) 50%, transparent);
+  outline: none;
+}
+
+/* =========================================================================
+   GENERAL LAYOUT & TYPOGRAPHY
+============================================================================ */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Same neutral top-darker/bottom-lighter gradient as .reading-pane
+     (sidebar.html), instead of the previous accent-tinted radial glow. */
+  background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
+  color: var(--foreground);
+  margin: 0;
+  padding: 1rem;
+  min-width: 280px; /* Minimum width for popup and options */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.popup-container {
+  text-align: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 400px;
+  padding: 2em;
+  background-color: var(--surface);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  margin-bottom: 1em;
+}
+
+.page-header h1 {
+  margin-bottom: 0;
+}
+
+h1 {
+  text-align: center;
+  font-size: 2em;
+  margin-bottom: 1em;
+}
+
+/* =========================================================================
+   FORM STYLES
+============================================================================ */
+.form-group {
+  margin-bottom: 1.5em;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.5em;
+}
+
+.form-group.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.form-group.checkbox-group label {
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 10px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--foreground);
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--input-focus) 20%, transparent);
+}
+
+/* Firefox's number-input spinner is not affected by the webkit rules below,
+   but does respect color-scheme, so opt it into the dark palette here. */
+input[type="number"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] input[type="number"] {
+  color-scheme: light;
+}
+
+/* Chrome/Safari-only spin-button pseudo-elements - restyle so the up/down
+   arrows sit on the same dark background as the rest of the field instead
+   of the browser's default white swatch. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.hint-text {
+  display: block;
+  margin-top: 0.5em;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* One-off notices appended to the reading pane (e.g. local-Ollama
+   truncation) - a single muted line, not a real original/translated pair,
+   so it's visually distinct from the surrounding page content. */
+.reading-notice {
+  margin: 1em 0;
+  padding: 0.6em 0.9em;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--border);
+}
+
+.divider {
+  border: none;
+  height: 1px;
+  background-color: var(--border);
+  margin: 2em 0;
+}
+
+#sites-list .checkbox-group {
+  margin-bottom: 0.75em;
+}
