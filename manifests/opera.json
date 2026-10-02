@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tab History for Long-Open Tabs",
   "version": "2.0",
-  "description": "Keeps a history of tabs that stayed open for days: how long each was open, searchable and sortable in a side panel.",
+  "description": "Keeps a history of tabs that stayed open for days: how long each was open, searchable and sortable in a sidebar.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -15,8 +15,7 @@
   "permissions": [
     "tabs",
     "storage",
-    "alarms",
-    "sidePanel"
+    "alarms"
   ],
   "action": {
     "default_icon": {
@@ -26,7 +25,12 @@
     "default_title": "Tab History",
     "default_popup": "popup.html"
   },
-  "side_panel": {
-    "default_path": "sidebar.html"
+  "sidebar_action": {
+    "default_title": "Tab History",
+    "default_panel": "sidebar.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   }
 }

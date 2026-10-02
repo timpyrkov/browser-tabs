@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "Suche löschen",
   settingsLabel: "Einstellungen",
   themeToggleLabel: "Design wechseln",
+  openSidebarLabel: "In der Seitenleiste öffnen",
 
   sortLabel: "Sortieren:",
   sortDuration: "Dauer",

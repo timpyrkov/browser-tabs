@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "Очистить поиск",
   settingsLabel: "Настройки",
   themeToggleLabel: "Сменить тему",
+  openSidebarLabel: "Открыть в боковой панели",
 
   sortLabel: "Сортировка:",
   sortDuration: "Длительность",

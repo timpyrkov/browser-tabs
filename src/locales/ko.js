@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "검색 지우기",
   settingsLabel: "설정",
   themeToggleLabel: "테마 전환",
+  openSidebarLabel: "사이드 패널에서 열기",
 
   sortLabel: "정렬:",
   sortDuration: "기간",

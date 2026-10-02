@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "清除搜索",
   settingsLabel: "设置",
   themeToggleLabel: "切换主题",
+  openSidebarLabel: "在侧边栏中打开",
 
   sortLabel: "排序：",
   sortDuration: "时长",

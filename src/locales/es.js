@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "Borrar búsqueda",
   settingsLabel: "Ajustes",
   themeToggleLabel: "Cambiar tema",
+  openSidebarLabel: "Abrir en el panel lateral",
 
   sortLabel: "Orden:",
   sortDuration: "Duración",

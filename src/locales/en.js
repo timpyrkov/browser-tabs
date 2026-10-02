@@ -10,6 +10,7 @@ export default {
   searchClearLabel: "Clear search",
   settingsLabel: "Settings",
   themeToggleLabel: "Toggle theme",
+  openSidebarLabel: "Open in side panel",
 
   // Sort row
   sortLabel: "Sort:",

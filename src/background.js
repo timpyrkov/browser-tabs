@@ -616,13 +616,36 @@ brw.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // keep the channel open for the async response
 });
 
-// Toolbar icon opens the sidebar/side panel.
-if (brw.sidebarAction && brw.action) {
-  brw.action.onClicked.addListener(() => {
-    brw.sidebarAction.toggle();
-  });
-} else if (brw.sidePanel && brw.sidePanel.setPanelBehavior) {
-  brw.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.error(error));
+// ---------------------------------------------------------------------------
+// Toolbar icon: sidebar primary, toolbar popup as fallback
+// ---------------------------------------------------------------------------
+//
+// Firefox: sidebar only (no popup in its manifest); the icon toggles it.
+// Chrome: the manifest declares a popup as the safe default, and a declared
+// popup always wins the icon click. So once the side panel has accepted the
+// click, the popup is removed for this session — only then, so if the side
+// panel fails the popup stays.
+// Opera: no chrome.sidePanel; the popup stays and the sidebar is opened from
+// Opera's own sidebar icon.
+// Yandex: installs from the Chrome / Opera stores but shows no side panel for
+// extensions, so the popup is the whole UI there and must never be removed.
+function preferSidePanel() {
+  const sidePanel = chrome.sidePanel;
+  if (typeof sidePanel.setPanelBehavior !== 'function' || typeof sidePanel.open !== 'function') return;
+  if (typeof navigator !== 'undefined' && /YaBrowser/.test(navigator.userAgent || '')) return;
+  sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+    .then(() => chrome.action.setPopup({ popup: '' }))
+    .catch((error) => console.error('Side panel unavailable; keeping the toolbar popup:', error));
+}
+
+if (typeof browser !== 'undefined' && browser.sidebarAction) {
+  browser.action.onClicked.addListener(() => browser.sidebarAction.toggle());
+} else if (typeof chrome !== 'undefined' && chrome.sidePanel) {
+  preferSidePanel();
+  // Runtime action settings do not outlast the browser session, and an icon
+  // click that opens a popup does not wake an idle worker. onStartup wakes it
+  // at browser start, so the first click already opens the side panel.
+  chrome.runtime.onStartup.addListener(preferSidePanel);
 }
 
 // Warm start on worker wake: make sure alarms exist and the tracker is fresh.

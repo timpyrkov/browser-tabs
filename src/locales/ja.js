@@ -9,6 +9,7 @@ export default {
   searchClearLabel: "検索をクリア",
   settingsLabel: "設定",
   themeToggleLabel: "テーマを切り替え",
+  openSidebarLabel: "サイドパネルで開く",
 
   sortLabel: "並べ替え:",
   sortDuration: "期間",

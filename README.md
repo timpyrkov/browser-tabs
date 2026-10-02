@@ -19,6 +19,7 @@ history with its final open-duration and can be reopened with one click.
 ```bash
 npm run build:firefox    # -> dist/firefox/
 npm run build:chrome     # -> dist/chrome/
+npm run build:opera      # -> dist/opera/
 ```
 
 ### Firefox
@@ -34,6 +35,21 @@ Then click **Load Temporary Add-on…** and select `dist/firefox/manifest.json`
 chrome://extensions/
 ```
 Then click **Load unpacked** and select the `dist/chrome/` folder
+
+### Opera
+
+```
+opera://extensions
+```
+Then enable **Developer mode**, click **Load unpacked** and select the `dist/opera/` folder
+
+### Yandex Browser
+
+```
+browser://extensions
+```
+Then load `dist/chrome/` or `dist/opera/` the same way (toolbar popup only — Yandex has no
+extension sidebar)
 
 ---
 
@@ -94,21 +110,29 @@ Then click **Load unpacked** and select the `dist/chrome/` folder
 
 ## 🚀 Build
 
-No dependencies; the build copies `src/` plus the right manifest into `dist/`:
+No dependencies; the build copies `src/` plus the right manifest into `dist/`. The
+Chrome and Opera builds also get a toolbar popup generated from `sidebar.html`
+(plus `targets/popup/` and, for Chrome, `targets/chrome/`):
 
 ```bash
-npm run build            # lint + both browsers
-npm run build:firefox    # dist/firefox/
-npm run build:chrome     # dist/chrome/
+npm run build            # lint + tests + all three builds
+npm run build:firefox    # dist/firefox/  (sidebar only)
+npm run build:chrome     # dist/chrome/   (side panel; toolbar popup as fallback)
+npm run build:opera      # dist/opera/    (sidebar + toolbar popup)
+npm test                 # regression tests (node, no browser)
+npm run package:firefox  # -> browser-tabs-firefox.zip (store upload)
+npm run package:chrome   # -> browser-tabs-chrome.zip
+npm run package:opera    # -> browser-tabs-opera.zip
 ```
 
-## 📦 Install (temporary / developer mode)
+## 📦 Panel per browser
 
-- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on…* →
-  pick `dist/firefox/manifest.json`. Open the sidebar via the toolbar icon or
-  View → Sidebar.
-- **Chrome:** `chrome://extensions` → enable *Developer mode* → *Load unpacked* →
-  pick `dist/chrome/`. Click the toolbar icon to open the side panel.
+| Browser | Toolbar icon opens |
+|---|---|
+| Firefox | the sidebar |
+| Chrome | the side panel (the popup is removed at startup once the side panel accepts the click) |
+| Opera | the popup; the sidebar opens from Opera's own sidebar icon |
+| Yandex (Chrome or Opera build) | the popup — no extension sidebar there |
 
 ---
 
@@ -120,7 +144,12 @@ browser-tabs/
 ├── build.cjs             # Dependency-free build: src/ + manifest → dist/[browser]/
 ├── manifests/
 │   ├── firefox.json      # MV3, sidebar_action, background.scripts
-│   └── chrome.json       # MV3, side_panel, service_worker
+│   ├── chrome.json       # MV3, side_panel + popup fallback, service_worker
+│   └── opera.json        # MV3, sidebar_action + popup, service_worker
+├── targets/
+│   ├── popup/popup.css   # Popup sizing, added to the Chrome and Opera builds
+│   └── chrome/popup.js   # Chrome-only "open in side panel" button
+├── test/run.cjs          # Regression tests (node vm, no browser)
 ├── src/
 │   ├── sidebar.html      # The single UI page
 │   ├── sidebar.js        # Sidebar logic (search/sort/edit/export/import)

@@ -5,11 +5,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "node --check src/defaults.js && node --check src/tabs-logic.js && node --check src/background.js && node --check src/sidebar.js && node --check src/theme.js && node --check src/i18n.js && for f in src/locales/*.js; do node --check \"$f\"; done && node --check build.cjs",
+    "lint": "node --check src/defaults.js && node --check src/tabs-logic.js && node --check src/background.js && node --check src/sidebar.js && node --check src/theme.js && node --check src/i18n.js && for f in src/locales/*.js; do node --check \"$f\"; done && for f in targets/*/*.js; do node --check \"$f\"; done && node --check build.cjs && node --check test/run.cjs",
     "build:firefox": "node build.cjs firefox",
     "build:chrome": "node build.cjs chrome",
-    "build": "npm run lint && npm run build:firefox && npm run build:chrome",
-    "clean": "rm -rf dist"
+    "build:opera": "node build.cjs opera",
+    "build": "npm run lint && npm test && npm run build:firefox && npm run build:chrome && npm run build:opera",
+    "package:firefox": "npm run build:firefox && rm -f browser-tabs-firefox.zip && cd dist/firefox && zip -qrX -FS ../../browser-tabs-firefox.zip . -x '*.DS_Store'",
+    "package:chrome": "npm run build:chrome && rm -f browser-tabs-chrome.zip && cd dist/chrome && zip -qrX -FS ../../browser-tabs-chrome.zip . -x '*.DS_Store'",
+    "package:opera": "npm run build:opera && rm -f browser-tabs-opera.zip && cd dist/opera && zip -qrX -FS ../../browser-tabs-opera.zip . -x '*.DS_Store'",
+    "clean": "rm -rf dist",
+    "test": "node test/run.cjs"
   },
   "author": "Tim Pyrkov",
   "license": "MIT"
