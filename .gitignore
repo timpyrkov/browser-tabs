@@ -25,3 +25,8 @@ Thumbs.db
 *.local
 .env
 .env.*
+
+# Local notes: of the root markdown files only README.md and PRIVACY.md are published
+/*.md
+!/README.md
+!/PRIVACY.md

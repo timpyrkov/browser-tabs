@@ -21,11 +21,13 @@
       min-width: 0;
     }
 
+    /* Full height minus the body padding, so the status line (and its Undo)
+       at the bottom of the list is never pushed below the window edge. */
     .sidebar-page {
       display: flex;
       flex-direction: column;
       width: 100%;
-      height: 100vh;
+      height: calc(100vh - 2rem);
       box-sizing: border-box;
       overflow: hidden;
     }
@@ -133,28 +135,51 @@
       margin-left: 1.2em;
     }
 
-    /* Second toolbar line: sort controls. */
-    .sort-row {
+    /* Second toolbar line: Open / Closed view and the sort controls. */
+    .view-row {
       width: 100%;
       order: 10;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.4em;
       margin-top: 0.5em;
     }
 
-    .sort-label {
-      font-size: 12px;
-      color: var(--text-secondary);
+    /* Kept together and right-aligned; in a narrow panel (or with long
+       labels) it wraps onto its own line instead of being cut off. */
+    .sort-group {
+      display: flex;
+      align-items: center;
+      gap: 0.4em;
+      margin-left: auto;
+    }
+
+    .view-row .btn {
       flex-shrink: 0;
     }
 
-    .sort-row select {
-      flex: 0 1 auto;
+    /* Open / Closed and the sort direction are gold buttons (the shared
+       .btn-green is the gold gradient, as on Browser Images' Download): the
+       selected one with a dark label, the other keeping its gold fill with a
+       grey label (same look as a disabled .btn, see styles.css), but still
+       clickable — hovering brings the dark label back. */
+    .view-row .btn:not(.active) {
+      color: var(--btn-disabled-text);
+      box-shadow: none;
     }
 
-    .sort-row .spacer {
-      flex: 1 1 auto;
+    .view-row .btn:not(.active):hover {
+      color: #241a03;
+    }
+
+    .view-row .count {
+      font-weight: 400;
+      opacity: 0.8;
+    }
+
+    .sort-dir {
+      font-size: 17px;
     }
 
     .btn-sm {
@@ -264,18 +289,9 @@
       cursor: pointer;
     }
 
-    input[type="time"] {
-      background-color: var(--input-bg);
-      border: 1px solid var(--input-border);
-      color: var(--foreground);
-      border-radius: 8px;
-      color-scheme: dark;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    :root[data-theme="light"] input[type="time"] {
-      color-scheme: light;
+    .backup-buttons {
+      display: flex;
+      gap: 0.5em;
     }
 
     .results-pane {
@@ -283,9 +299,8 @@
       width: 100%;
       min-height: 0;
       box-sizing: border-box;
-      overflow-y: auto;
       background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
-      padding: 1em;
+      padding: 0.6em 1em;
       border: 1px solid var(--border);
       border-radius: 6px;
       box-shadow: var(--shadow);
@@ -303,81 +318,17 @@
       overflow-y: auto;
     }
 
-    .summary-bar {
-      display: flex;
-      gap: 0.75em;
-      margin-bottom: 0.75em;
-      flex-wrap: wrap;
-      font-size: 13px;
-      color: var(--text-secondary);
-      flex-shrink: 0;
-    }
-
-    .summary-bar strong {
-      color: var(--foreground);
-    }
-
-    .filter-chips {
-      display: flex;
-      gap: 0.4em;
-      margin-bottom: 0.75em;
-      flex-wrap: wrap;
-      flex-shrink: 0;
-    }
-
-    .chip {
-      padding: 4px 10px;
-      font-size: 12px;
-      border-radius: 999px;
-    }
-
-    .chip.active {
-      border-color: var(--primary-1);
-      box-shadow: 0 0 8px color-mix(in srgb, var(--primary-1) 30%, transparent);
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: 0.4em;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      cursor: pointer;
-      padding: 0.4em 0;
-      border-bottom: 1px solid var(--border);
-      user-select: none;
-    }
-
-    .section-header:hover {
-      color: var(--foreground);
-    }
-
-    .section-header .count {
-      color: var(--primary-1);
-    }
-
-    .section-caret {
-      display: inline-block;
-      transition: transform 0.15s ease;
-      font-size: 10px;
-    }
-
-    .section-collapsed .section-caret {
-      transform: rotate(-90deg);
-    }
-
-    .section-collapsed + .section-body {
-      display: none;
-    }
-
     .log-row {
       display: flex;
       align-items: center;
-      gap: 0.45em;
+      gap: 0.6em;
       padding: 0.55em 0.2em;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
+    }
+
+    .log-row:last-child {
+      border-bottom: none;
     }
 
     .log-row:hover {
@@ -438,111 +389,27 @@
     .log-timing {
       font-size: 11px;
       color: var(--text-secondary);
-      opacity: 0.8;
+      opacity: 0.85;
       margin-top: 2px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    /* GitHub-style label chips, colour-coded per label name. */
-    .label-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 3px;
-    }
-
-    .label-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 1px 7px;
-      font-size: 11px;
-      font-weight: 600;
-      border-radius: 999px;
-      border: 1px solid currentColor;
-      background: color-mix(in srgb, currentColor 16%, transparent);
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .label-chip:hover {
-      background: color-mix(in srgb, currentColor 30%, transparent);
-    }
-
-    .label-chip .chip-x {
-      font-size: 12px;
-      opacity: 0.7;
-    }
-
-    .label-chip .chip-x:hover {
-      opacity: 1;
-    }
-
-    .label-editor,
-    .rename-editor {
-      display: flex;
-      align-items: center;
-      gap: 0.3em;
-      margin-top: 4px;
-    }
-
-    .label-editor[hidden] {
-      display: none;
-    }
-
-    .label-editor input,
-    .rename-editor input {
-      flex: 1;
-      min-width: 0;
-      height: 24px;
-      box-sizing: border-box;
-      padding: 0 8px;
-      font-size: 12px;
-      background: var(--input-bg);
-      border: 1px solid var(--input-border);
-      border-radius: 6px;
-      color: var(--foreground);
-    }
-
-    .label-editor input:focus,
-    .rename-editor input:focus {
-      outline: none;
-      border-color: var(--input-focus);
-    }
-
-    /* Marks a title the user edited, so it is clear why scans leave it alone. */
-    .title-custom::after {
-      content: '✎';
-      margin-left: 5px;
-      font-size: 10px;
-      color: var(--text-secondary);
-      font-weight: 400;
-    }
-
-    .undo-link {
-      background: none;
-      border: none;
-      padding: 0 0 0 6px;
-      color: var(--primary-1);
-      font-size: 12px;
-      font-style: normal;
-      font-weight: 600;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-
+    /* How long the tab stayed open: the importance signal, so it gets the
+       accent colour. Tabs not yet past the threshold are muted. */
     .log-status {
       font-size: 12px;
       font-weight: 600;
       flex-shrink: 0;
       white-space: nowrap;
+      color: var(--primary-1);
     }
 
-    .status-open { color: var(--color-success); }
-    .status-closed { color: var(--color-warning); }
-    .status-young { color: var(--primary-1); }
+    .log-status.status-young {
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
 
     .row-btn {
       flex-shrink: 0;
@@ -556,32 +423,24 @@
       border: none;
       border-radius: 4px;
       color: var(--text-secondary);
-      font-size: 14px;
+      font-size: 15px;
       cursor: pointer;
     }
 
     .row-btn:hover {
       background: var(--neutral-4);
-      color: var(--foreground);
-    }
-
-    .row-btn.row-btn-delete:hover {
       color: var(--color-error);
     }
 
-    .welcome-text,
-    .loading-text {
+    .welcome-text {
       color: var(--text-secondary);
       font-style: italic;
       text-align: center;
       margin-top: 2em;
     }
 
-    .error-text {
-      color: var(--error);
-      font-style: italic;
-      text-align: center;
-      margin-top: 1em;
+    .welcome-text[hidden] {
+      display: none;
     }
 
     .status-line {
@@ -589,52 +448,21 @@
       color: var(--text-secondary);
       font-style: italic;
       text-align: center;
-      margin-top: 0.5em;
+      padding-top: 0.5em;
       flex-shrink: 0;
       min-height: 1.2em;
     }
 
-    /* Sits directly under the last listed row (inside the scroll area), not
-       pinned to the bottom of the sidebar window. */
-    .actions-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.6em;
-      margin-top: 0.8em;
-      padding-top: 0.8em;
-      padding-left: 0.2em;
-      padding-right: 0.2em;
-      border-top: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    .actions-bar .btn {
-      height: 32px;
-    }
-
-    .export-wrap {
-      position: relative;
-      display: flex;
-    }
-
-    /* Small anchored menu for export format choice. */
-    .export-menu {
-      position: absolute;
-      bottom: calc(100% + 4px);
-      left: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.3em;
-      background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-      padding: 0.5em;
-      z-index: 100;
-    }
-
-    .export-menu[hidden] {
-      display: none;
+    .undo-link {
+      background: none;
+      border: none;
+      padding: 0 0 0 6px;
+      color: var(--primary-1);
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
     }
 
     /* Import replace/append dialog. */
@@ -668,12 +496,6 @@
       color: var(--foreground);
     }
 
-    .modal-card .file-name {
-      color: var(--primary-1);
-      font-weight: 600;
-      word-break: break-all;
-    }
-
     .modal-buttons {
       display: flex;
       gap: 0.5em;
@@ -690,7 +512,7 @@
       <select id="uiLangSelect" class="lang-select" title="Interface language"></select>
 
       <div class="search-wrap">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search title, URL, domain, label…" />
+        <input type="text" id="searchInput" class="search-input" placeholder="Search title or URL…" />
         <button id="searchClear" class="search-clear" title="Clear search" hidden>&#10005;</button>
       </div>
 
@@ -702,27 +524,20 @@
 
       <button id="themeToggle" class="theme-toggle toolbar-group-gap" title="Toggle theme">&#9728;&#65039;</button>
 
-      <div class="sort-row">
-        <span class="sort-label" id="sortLabel">Sort:</span>
-        <select id="sortSelect" title="Sort by">
-          <option value="duration">Duration</option>
-          <option value="domain">Url</option>
-          <option value="title">Name</option>
-          <option value="label">Tag</option>
-        </select>
-        <button id="sortDirBtn" class="btn btn-grey icon-btn" title="Sort direction">&#8595;</button>
-        <span class="spacer"></span>
-        <button id="deleteMatchingBtn" class="btn btn-red btn-sm" hidden>Delete shown</button>
+      <div class="view-row" id="viewRow">
+        <button class="btn btn-green btn-sm" data-view="open" id="viewOpenBtn"><span id="viewOpenLabel">Open</span> <span class="count" id="countOpen"></span></button>
+        <button class="btn btn-green btn-sm" data-view="closed" id="viewClosedBtn"><span id="viewClosedLabel">Closed</span> <span class="count" id="countClosed"></span></button>
+        <div class="sort-group">
+          <select id="sortSelect" title="Sort"></select>
+          <button class="btn btn-green icon-btn sort-dir" data-dir="asc" id="sortAscBtn" title="Ascending">&#8593;</button>
+          <button class="btn btn-green icon-btn sort-dir" data-dir="desc" id="sortDescBtn" title="Descending">&#8595;</button>
+        </div>
       </div>
 
       <div id="settingsPanel" class="settings-panel" hidden>
         <div class="form-group">
-          <label for="minDays" id="minDaysLabel">Days open before a tab enters history</label>
+          <label for="minDays" id="minDaysLabel">Record tabs open at least (days)</label>
           <input type="number" id="minDays" min="0" max="365" step="1" value="7" />
-        </div>
-        <div class="form-group">
-          <label for="scanTime" id="scanTimeLabel">Daily scan time</label>
-          <input type="time" id="scanTime" value="05:00" />
         </div>
         <div class="form-group checkbox-group">
           <input type="checkbox" id="excludePrivate" />
@@ -733,78 +548,28 @@
           <label for="excludePinned" id="excludePinnedLabel">Exclude pinned tabs</label>
         </div>
         <div class="form-group">
-          <label for="gapToleranceDays" id="gapToleranceLabel">Reopened within N days continues the count</label>
-          <input type="number" id="gapToleranceDays" min="0" max="3650" step="1" value="30" />
-        </div>
-        <div class="form-group checkbox-group">
-          <input type="checkbox" id="ignoreUrlFragment" />
-          <label for="ignoreUrlFragment" id="ignoreUrlFragmentLabel">Ignore #fragment in URLs</label>
-        </div>
-        <div class="form-group">
           <label for="excludeList" id="excludeListLabel">Never track these sites (one per line)</label>
           <textarea id="excludeList" rows="4"></textarea>
         </div>
         <div class="form-group">
-          <label for="maxTitleLength" id="maxTitleLengthLabel">Max title length</label>
-          <input type="number" id="maxTitleLength" min="20" max="300" step="10" value="100" />
-        </div>
-        <div class="form-group checkbox-group">
-          <input type="checkbox" id="syncEnabled" />
-          <label for="syncEnabled" id="syncEnabledLabel">Sync settings and labels</label>
-        </div>
-        <div class="form-group" id="syncNoteGroup">
-          <span class="hint-text" id="syncNote"></span>
+          <label id="backupLabel">Backup</label>
+          <div class="backup-buttons">
+            <button id="exportBtn" class="btn btn-yellow btn-sm">Export</button>
+            <button id="importBtn" class="btn btn-green btn-sm">Import</button>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="results-pane">
-      <div class="summary-bar" id="summaryBar">
-        <span><span id="summaryHistoryLabel">History</span>: <strong id="countHistory">0</strong></span>
-        <span><span id="summaryOpenLabel">Open now</span>: <strong id="countOpen">0</strong></span>
-        <span id="scanInfo"></span>
-      </div>
-      <div class="filter-chips" id="filterChips">
-        <button class="btn btn-grey chip active" data-show="all" id="filterAllBtn">All</button>
-        <button class="btn btn-grey chip" data-show="open" id="filterOpenBtn">Still open</button>
-        <button class="btn btn-grey chip" data-show="closed" id="filterClosedBtn">Closed</button>
-      </div>
-
       <div class="results-scroll">
-        <div class="section-header" id="historyHeader">
-          <span class="section-caret">&#9660;</span>
-          <span id="historyHeaderLabel">History (long-open tabs)</span>
-          <span class="count" id="historyCount"></span>
-        </div>
-        <div class="section-body" id="historyList"></div>
-
-        <div class="section-header" id="openHeader" style="margin-top: 0.8em;">
-          <span class="section-caret">&#9660;</span>
-          <span id="openHeaderLabel">Open tabs (not yet in history)</span>
-          <span class="count" id="openCount"></span>
-        </div>
-        <div class="section-body" id="openList"></div>
-
+        <div id="list"></div>
         <div class="welcome-text" id="welcomeText" hidden></div>
-
-        <div class="status-line" id="statusLine"></div>
-
-        <div class="actions-bar">
-          <button id="scanNowBtn" class="btn btn-green btn-sm">Scan now</button>
-          <button id="importBtn" class="btn btn-green btn-sm">Import</button>
-          <div class="export-wrap">
-            <button id="exportBtn" class="btn btn-yellow btn-sm">Export</button>
-            <div id="exportMenu" class="export-menu" hidden>
-              <button id="exportNdjsonBtn" class="btn btn-grey btn-sm">NDJSON</button>
-              <button id="exportCsvBtn" class="btn btn-grey btn-sm">CSV</button>
-            </div>
-          </div>
-        </div>
       </div>
+      <div class="status-line" id="statusLine"></div>
     </div>
   </div>
 
-  <datalist id="labelSuggestions"></datalist>
   <input type="file" id="importFile" accept=".ndjson,.json,.txt" hidden />
 
   <div id="importModal" class="modal-overlay" hidden>

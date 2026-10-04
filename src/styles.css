@@ -69,6 +69,11 @@
   --error: var(--color-error);
   --warning: var(--color-warning);
   --info: var(--color-message);
+
+  /* One mid grey for both themes: coloured buttons keep the same fill in light
+     and dark, and #7a7a7a reads as inactive on gold, olive, red and on the
+     neutral grey button alike. */
+  --btn-disabled-text: #7a7a7a;
 }
 
 /* Light theme: opt-in via [data-theme="light"] on <html>, set by theme.js.
@@ -283,10 +288,12 @@ input[type="radio"]:hover {
   position: relative;
   text-decoration: none;
 }
+/* Disabled: keep the fill, border and shape; grey only the label (and icons
+   drawn with currentColor). Fading the whole button mixes the gradient with
+   the background and looks muddy, especially on the dark theme. */
 .btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
-  filter: grayscale(0.4);
+  color: var(--btn-disabled-text);
   box-shadow: none;
 }
 .btn:active:not(:disabled) {

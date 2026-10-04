@@ -1,24 +1,31 @@
 // sidebar.js
-// UI logic for the Tab History sidebar. An ES module for the i18n imports;
-// DEFAULT_SETTINGS and TabsLogic still arrive as globals from the classic
-// scripts the page loads first.
+// UI logic for the Tab History panel (sidebar, side panel and toolbar popup
+// all load this same page). An ES module for the i18n imports;
+// DEFAULT_SETTINGS and TabsLogic arrive as globals from the classic scripts
+// the page loads first.
+//
+// The panel is only a view: the background owns history and the tracker, and
+// every change is a command to it. The one thing kept here is the Undo of the
+// last removal, because a Chrome worker is unloaded after ~30 s idle.
 import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FLAGS } from './i18n.js';
 
 (function () {
   const brw = typeof browser !== 'undefined' ? browser : chrome;
   const Logic = window.TabsLogic;
+  const VIEWS = ['open', 'closed'];
+  // Sort keys offered per view (an open tab has no close time yet), and the
+  // starting order of each view.
+  const VIEW_SORT_KEYS = { open: ['name', 'opened', 'duration'], closed: ['name', 'opened', 'duration', 'closed'] };
+  const DEFAULT_SORT = { open: { key: 'duration', dir: 'desc' }, closed: { key: 'closed', dir: 'desc' } };
+  const SORT_LABEL_KEYS = { name: 'sortName', opened: 'sortOpened', duration: 'sortDuration', closed: 'sortClosed' };
 
   // Bound to the active language so call sites stay short.
   function t(key, ...args) {
     return translate(state.settings.uiLang || 'en', key, ...args);
   }
 
-  function units() {
-    return durationUnits(state.settings.uiLang || 'en');
-  }
-
   function fmt(ms) {
-    return Logic.formatDuration(ms, units());
+    return Logic.formatDuration(ms, durationUnits(state.settings.uiLang || 'en'));
   }
 
   // ---------------------------------------------------------------------------
@@ -28,42 +35,23 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   const state = {
     history: [],       // HistoryEntry[]
     openTabs: [],      // tracker records incl. tabId
-    lastScanAt: 0,
-    nextScanAt: 0,
     settings: { ...DEFAULT_SETTINGS },
     prefs: {
       query: '',
-      sortKey: 'duration',
-      sortDir: 'desc',
-      show: 'all', // all | open | closed
-      collapsedHistory: false,
-      collapsedOpen: false,
+      view: 'closed',     // open | closed
+      sort: { open: { ...DEFAULT_SORT.open }, closed: { ...DEFAULT_SORT.closed } },
     },
-    labelColors: {},
-    labelNames: {},
-    syncError: null,
-    canUndo: false,
-    pendingImport: null, // { fileName, entries }
-    confirmDelete: false,
-    editingLabelsFor: null, // url whose label editor is open
-    renamingFor: null,      // url whose rename editor is open
+    pendingImport: null,  // { fileName, entries }
   };
 
   const els = {};
-  ['searchInput', 'searchClear', 'labelSuggestions',
-   'settingsBtn', 'themeToggle', 'sortSelect', 'sortDirBtn', 'deleteMatchingBtn',
-   'settingsPanel', 'minDays', 'scanTime', 'excludePrivate', 'excludePinned', 'maxTitleLength',
-   'ignoreUrlFragment', 'excludeList', 'gapToleranceDays', 'syncEnabled', 'syncEnabledLabel', 'syncNote',
-   'countHistory', 'countOpen', 'scanInfo', 'filterChips', 'historyHeader', 'historyList',
-   'historyCount', 'openHeader', 'openList', 'openCount', 'welcomeText', 'statusLine',
-   'scanNowBtn', 'exportBtn', 'importBtn', 'exportMenu', 'exportNdjsonBtn', 'exportCsvBtn',
-   'importFile', 'importModal', 'importPrompt',
+  ['searchInput', 'searchClear', 'settingsBtn', 'themeToggle', 'uiLangSelect',
+   'viewClosedBtn', 'viewOpenBtn', 'viewClosedLabel', 'viewOpenLabel', 'countClosed', 'countOpen',
+   'sortSelect', 'sortAscBtn', 'sortDescBtn', 'settingsPanel', 'minDays', 'minDaysLabel', 'excludePrivate', 'excludePrivateLabel',
+   'excludePinned', 'excludePinnedLabel', 'excludeList', 'excludeListLabel', 'backupLabel',
+   'exportBtn', 'importBtn', 'importFile', 'importModal', 'importPrompt',
    'importAppendBtn', 'importReplaceBtn', 'importCancelBtn',
-   'uiLangSelect', 'sortLabel', 'summaryHistoryLabel', 'summaryOpenLabel',
-   'filterAllBtn', 'filterOpenBtn', 'filterClosedBtn',
-   'historyHeaderLabel', 'openHeaderLabel',
-   'minDaysLabel', 'scanTimeLabel', 'gapToleranceLabel', 'excludePrivateLabel',
-   'excludePinnedLabel', 'ignoreUrlFragmentLabel', 'excludeListLabel', 'maxTitleLengthLabel',
+   'list', 'welcomeText', 'statusLine',
   ].forEach((id) => { els[id] = document.getElementById(id); });
 
   function sendMessage(payload) {
@@ -80,23 +68,23 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     }
   }
 
-  // Deletion is the one destructive action here, so it always comes with a way
+  // Removal is the one destructive action here, so it always comes with a way
   // back rather than a confirmation prompt people learn to click through.
-  function showUndoableStatus(text) {
-    showStatus(text, false, 12000); // longer window: undo must be reachable
+  function showUndo(removed) {
+    showStatus(t('statusRemovedOne'), false, 12000);
     const undo = document.createElement('button');
     undo.className = 'undo-link';
     undo.textContent = t('statusUndo');
     undo.addEventListener('click', async () => {
-      const response = await sendMessage({ action: 'undoDelete' });
+      const response = await sendMessage({ action: 'restoreEntries', entries: removed });
       await refresh();
-      showStatus(response && response.restored ? t('statusRestored', response.restored) : t('statusNothingToRestore'));
+      showStatus(t('statusRestored', (response && response.restored) || 0));
     });
     els.statusLine.appendChild(undo);
   }
 
   // ---------------------------------------------------------------------------
-  // Prefs persistence (sidebar-owned UI state)
+  // Prefs persistence (panel-owned view state)
   // ---------------------------------------------------------------------------
 
   let prefsSaveTimer = null;
@@ -109,14 +97,26 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
   async function loadPrefs() {
     const stored = await brw.storage.local.get('sidebarPrefs');
-    if (stored.sidebarPrefs) {
-      state.prefs = { ...state.prefs, ...stored.sidebarPrefs };
+    const saved = stored.sidebarPrefs || {};
+    // Prefs from older versions (other sort keys, an "all" view) fall back
+    // to the defaults rather than leaving a control blank.
+    const sort = {};
+    for (const view of VIEWS) {
+      const s = (saved.sort && saved.sort[view]) || {};
+      sort[view] = {
+        key: VIEW_SORT_KEYS[view].includes(s.key) ? s.key : DEFAULT_SORT[view].key,
+        dir: Logic.SORT_DIRS.includes(s.dir) ? s.dir : DEFAULT_SORT[view].dir,
+      };
     }
-    // A pref saved under a sort key that no longer exists would leave the
-    // select blank; fall back to the default.
-    if (!Logic.SORT_KEYS.includes(state.prefs.sortKey)) {
-      state.prefs.sortKey = 'duration';
-    }
+    state.prefs = {
+      query: typeof saved.query === 'string' ? saved.query : '',
+      view: VIEWS.includes(saved.view) ? saved.view : 'closed',
+      sort,
+    };
+  }
+
+  function currentSort() {
+    return state.prefs.sort[state.prefs.view];
   }
 
   // ---------------------------------------------------------------------------
@@ -131,12 +131,6 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     }
     state.history = response.history || [];
     state.openTabs = response.openTabs || [];
-    state.labelColors = response.labelColors || {};
-    state.labelNames = response.labelNames || {};
-    state.syncError = response.syncError || null;
-    state.canUndo = Boolean(response.canUndo);
-    state.lastScanAt = response.lastScanAt || 0;
-    state.nextScanAt = response.nextScanAt || 0;
   }
 
   async function fetchSettings() {
@@ -147,58 +141,43 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   }
 
   // ---------------------------------------------------------------------------
-  // Rendering
+  // Rows
   // ---------------------------------------------------------------------------
 
-  function formatAgo(timestamp, now) {
-    if (!timestamp) return t('timeNever');
-    return t('timeAgo', fmt(Math.max(0, now - timestamp)));
+  function closedEntries(now) {
+    const entries = state.history.filter((entry) => !entry.isOpen && Logic.matchesQuery(entry, state.prefs.query));
+    const { key, dir } = state.prefs.sort.closed;
+    return Logic.sortEntries(entries, key, dir, now);
   }
 
-  function formatIn(timestamp, now) {
-    if (!timestamp || timestamp <= now) return t('timeSoon');
-    return t('timeIn', fmt(timestamp - now));
-  }
-
-  function visibleHistory(now) {
-    let entries = state.history.filter((entry) => Logic.matchesQuery(entry, state.prefs.query));
-    if (state.prefs.show === 'open') entries = entries.filter((entry) => entry.isOpen);
-    if (state.prefs.show === 'closed') entries = entries.filter((entry) => !entry.isOpen);
-    return Logic.sortEntries(entries, state.prefs.sortKey, state.prefs.sortDir, now);
-  }
-
-  function visibleOpenTabs(now) {
-    const inHistory = new Set(state.history.map((entry) => entry.url));
-    let records = state.openTabs.filter((rec) => !inHistory.has(rec.url));
-    const query = state.prefs.query;
-    if (query) {
-      records = records.filter((rec) => Logic.matchesQuery(
-        { title: rec.title, url: rec.url, domain: Logic.domainOf(rec.url), labels: [] }, query));
+  // One row per open URL (the oldest tab defines its age). A URL already in
+  // history uses the history start, which includes a continued count after a
+  // short close-and-reopen. Items are shaped like open history entries so
+  // the same sort applies.
+  function openItems(now) {
+    const historyByUrl = new Map(state.history.map((entry) => [entry.url, entry]));
+    const items = [];
+    for (const rec of Object.values(Logic.oldestRecordByUrl(state.openTabs))) {
+      const entry = historyByUrl.get(rec.url);
+      const item = {
+        rec,
+        title: rec.title || (entry && entry.title) || '',
+        url: rec.url,
+        domain: Logic.domainOf(rec.url),
+        favIconUrl: rec.favIconUrl || (entry && entry.favIconUrl) || '',
+        firstSeenAt: entry ? entry.firstSeenAt : rec.firstSeenAt,
+        lastSeenOpenAt: now,
+        isOpen: true,
+      };
+      item.ageMs = Logic.entryDurationMs(item, now);
+      if (Logic.matchesQuery(item, state.prefs.query)) items.push(item);
     }
-    const sign = state.prefs.sortDir === 'asc' ? 1 : -1;
-    records.sort((a, b) => sign * (Logic.tabAgeMs(a, now) - Logic.tabAgeMs(b, now)));
-    return records;
+    const { key, dir } = state.prefs.sort.open;
+    return Logic.sortEntries(items, key, dir, now);
   }
 
-  // A crisp tag glyph — the 🏷 emoji renders inconsistently across platforms.
-  const TAG_ICON_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">'
-    + '<path d="M5.5,7A1.5,1.5 0 0,1 4,5.5A1.5,1.5 0 0,1 5.5,4A1.5,1.5 0 0,1 7,5.5A1.5,1.5 0 0,1 5.5,7M21.41,11.58L12.41,2.58C12.05,2.22 11.55,2 11,2H4C2.89,2 2,2.89 2,4V11C2,11.55 2.22,12.05 2.59,12.41L11.58,21.41C11.95,21.77 12.45,22 13,22C13.55,22 14.05,21.77 14.41,21.41L21.41,14.41C21.78,14.05 22,13.55 22,13C22,12.44 21.77,11.94 21.41,11.58Z" />'
-    + '</svg>';
-
-  function makeRowButton(symbol, title, extraClass, onClick) {
-    const btn = document.createElement('button');
-    btn.className = 'row-btn' + (extraClass ? ` ${extraClass}` : '');
-    if (symbol === 'tag') {
-      btn.innerHTML = TAG_ICON_SVG;
-    } else {
-      btn.textContent = symbol;
-    }
-    btn.title = title;
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      onClick();
-    });
-    return btn;
+  function uniqueOpenCount() {
+    return Object.keys(Logic.oldestRecordByUrl(state.openTabs)).length;
   }
 
   // A src-less <img> draws a broken-image frame, so rows without a favicon get
@@ -216,172 +195,28 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     const img = document.createElement('img');
     img.className = 'log-fav';
     img.src = favIconUrl;
-    img.addEventListener('error', () => {
-      img.replaceWith(makeFaviconPlaceholder());
-    });
+    img.addEventListener('error', () => img.replaceWith(makeFaviconPlaceholder()));
     return img;
   }
 
   function applyQuery(text) {
     state.prefs.query = text;
     els.searchInput.value = text;
-    state.confirmDelete = false;
     savePrefs();
     render();
   }
 
-  // Colours are claimed per label by the background (least-used slot wins, then
-  // persisted). The hash is only a fallback for a label not yet in the map.
-  function labelColor(label) {
-    const index = state.labelColors[label.toLowerCase()];
-    if (Number.isInteger(index)) {
-      return `var(--category-${index + 1})`;
-    }
-    let hash = 0;
-    for (let i = 0; i < label.length; i++) {
-      hash = (hash * 31 + label.charCodeAt(i)) >>> 0;
-    }
-    return `var(--category-${(hash % Logic.LABEL_COLOR_COUNT) + 1})`;
-  }
-
-  // Two-step, because it both edits settings and purges matching entries.
-  let pendingExclude = null;
-  async function excludeDomain(url) {
-    const domain = Logic.domainOf(url);
-    if (!domain) return;
-    if (pendingExclude !== domain) {
-      pendingExclude = domain;
-      showStatus(t('statusExcludeConfirm', domain), false, 4000);
-      setTimeout(() => { if (pendingExclude === domain) pendingExclude = null; }, 4000);
-      return;
-    }
-    pendingExclude = null;
-    const response = await sendMessage({ action: 'excludeDomain', pattern: domain });
-    if (response && response.error) {
-      showStatus(response.error, true);
-      return;
-    }
-    await refresh();
-    showUndoableStatus(response.removed
-      ? t('statusExcludedRemoved', domain, response.removed)
-      : t('statusExcluded', domain));
-  }
-
-  async function setLabels(url, labels) {
-    const response = await sendMessage({ action: 'setLabels', url, labels });
-    if (response && response.error) {
-      showStatus(response.error, true);
-      return;
-    }
-    await refresh();
-  }
-
-  function makeLabelChips(url, labels, editable) {
-    const wrap = document.createElement('div');
-    wrap.className = 'label-chips';
-    for (const label of labels) {
-      const chip = document.createElement('span');
-      chip.className = 'label-chip';
-      chip.style.color = labelColor(label);
-
-      const text = document.createElement('span');
-      text.textContent = label;
-      text.title = t('rowFilterByLabel', label);
-      text.addEventListener('click', (event) => {
-        event.stopPropagation();
-        applyQuery(label);
-      });
-      chip.appendChild(text);
-
-      if (editable) {
-        const remove = document.createElement('span');
-        remove.className = 'chip-x';
-        remove.textContent = '×';
-        remove.title = t('rowRemoveLabel', label);
-        remove.addEventListener('click', (event) => {
-          event.stopPropagation();
-          setLabels(url, labels.filter((item) => item !== label));
-        });
-        chip.appendChild(remove);
-      }
-      wrap.appendChild(chip);
-    }
-    return wrap;
-  }
-
-  function makeLabelEditor(url, labels) {
-    const editor = document.createElement('div');
-    editor.className = 'label-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = t('labelPlaceholder');
-    input.setAttribute('list', 'labelSuggestions');
-    input.addEventListener('click', (event) => event.stopPropagation());
-    input.addEventListener('keydown', (event) => {
-      event.stopPropagation();
-      if (event.key === 'Enter') {
-        const value = input.value.trim();
-        if (value) {
-          state.editingLabelsFor = null;
-          setLabels(url, [...labels, value]);
-        }
-      } else if (event.key === 'Escape') {
-        state.editingLabelsFor = null;
-        render();
-      }
-    });
-
-    editor.appendChild(input);
-    // Focus once the row is in the DOM.
-    setTimeout(() => input.focus(), 0);
-    return editor;
-  }
-
-  function makeRenameEditor(url, currentTitle) {
-    const editor = document.createElement('div');
-    editor.className = 'rename-editor';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = currentTitle;
-    input.placeholder = t('renamePlaceholder');
-    input.addEventListener('click', (event) => event.stopPropagation());
-    input.addEventListener('keydown', async (event) => {
-      event.stopPropagation();
-      if (event.key === 'Enter') {
-        state.renamingFor = null;
-        const response = await sendMessage({ action: 'renameEntry', url, title: input.value });
-        if (response && response.error) showStatus(response.error, true);
-        await refresh();
-      } else if (event.key === 'Escape') {
-        state.renamingFor = null;
-        render();
-      }
-    });
-
-    editor.appendChild(input);
-    setTimeout(() => { input.focus(); input.select(); }, 0);
-    return editor;
-  }
-
-  function makeInfoBlock(title, url, timingText, labels, showEditor, options) {
-    const opts = options || {};
+  function makeInfoBlock(title, url, timingText, timingTitle) {
     const info = document.createElement('div');
     info.className = 'log-info';
 
-    if (opts.renaming) {
-      info.appendChild(makeRenameEditor(url, title || ''));
-    } else {
-      const titleEl = document.createElement('div');
-      titleEl.className = 'log-title' + (opts.titleCustom ? ' title-custom' : '');
-      titleEl.textContent = title || url;
-      if (opts.titleCustom) titleEl.title = t('rowRenamedTitle');
-      info.appendChild(titleEl);
-    }
+    const titleEl = document.createElement('div');
+    titleEl.className = 'log-title';
+    titleEl.textContent = title || url;
+    info.appendChild(titleEl);
 
-    // Domain stays whole and clickable; the rest of the URL is shown muted and
-    // middle-truncated, so pages on one site remain distinguishable.
+    // Domain stays whole and clickable (filters by it); the rest of the URL
+    // is muted and middle-truncated, so pages on one site stay distinguishable.
     const { domain, rest } = Logic.splitUrlForDisplay(url);
     const urlEl = document.createElement('div');
     urlEl.className = 'log-url';
@@ -409,21 +244,21 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       const timing = document.createElement('div');
       timing.className = 'log-timing';
       timing.textContent = timingText;
+      if (timingTitle) timing.title = timingTitle;
       info.appendChild(timing);
-    }
-
-    if (labels && labels.length) {
-      info.appendChild(makeLabelChips(url, labels, true));
-    }
-    if (showEditor) {
-      info.appendChild(makeLabelEditor(url, labels || []));
     }
     return info;
   }
 
-  async function focusOrOpen(url) {
-    const rec = state.openTabs.find((r) => r.url === url);
-    if (rec && rec.tabId != null) {
+  function makeStatus(text, young) {
+    const status = document.createElement('span');
+    status.className = 'log-status' + (young ? ' status-young' : '');
+    status.textContent = text;
+    return status;
+  }
+
+  async function focusOrOpen(rec) {
+    if (rec.tabId != null) {
       try {
         await brw.tabs.update(rec.tabId, { active: true });
         if (rec.windowId != null) {
@@ -432,165 +267,92 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
         return;
       } catch (e) { /* stale tab id — fall through to opening a new tab */ }
     }
-    await brw.tabs.create({ url });
+    await brw.tabs.create({ url: rec.url });
   }
 
-  function renderHistoryRow(entry, now) {
+  function renderClosedRow(entry, now) {
     const row = document.createElement('div');
     row.className = 'log-row';
-    row.title = entry.url;
+    row.title = t('rowReopen');
 
-    const durationMs = Logic.entryDurationMs(entry, now);
-    // The span counts breaks in which the tab was closed, so name them.
-    const gapNote = entry.gapMs > 0 ? t('rowClosedInBetween', fmt(entry.gapMs)) : '';
-    const timing = (entry.isOpen
-      ? t('rowFirstSeen', formatAgo(entry.firstSeenAt, now))
-      : t('rowWasOpen', fmt(durationMs), formatAgo(entry.lastSeenOpenAt, now))) + gapNote;
-
+    const lang = state.settings.uiLang || undefined;
+    const closedAt = new Date(entry.lastSeenOpenAt);
     row.appendChild(makeFavicon(entry.favIconUrl));
     row.appendChild(makeInfoBlock(
-      entry.title, entry.url, timing, entry.labels || [],
-      state.editingLabelsFor === entry.url,
-      { renaming: state.renamingFor === entry.url, titleCustom: entry.titleCustom }));
+      entry.title, entry.url,
+      t('rowClosedAgo', fmt(Math.max(0, now - entry.lastSeenOpenAt))),
+      closedAt.toLocaleString(lang)));
+    row.appendChild(makeStatus(t('rowOpenFor', fmt(Logic.entryDurationMs(entry, now))), false));
 
-    const status = document.createElement('span');
-    status.className = `log-status ${entry.isOpen ? 'status-open' : 'status-closed'}`;
-    status.textContent = entry.isOpen ? t('rowOpenFor', fmt(durationMs)) : fmt(durationMs);
-    row.appendChild(status);
-
-    row.appendChild(makeRowButton('✎', t('actionRename'), '', () => {
-      state.renamingFor = state.renamingFor === entry.url ? null : entry.url;
-      state.editingLabelsFor = null;
-      render();
-    }));
-    row.appendChild(makeRowButton('tag', t('actionAddLabel'), '', () => {
-      state.editingLabelsFor = state.editingLabelsFor === entry.url ? null : entry.url;
-      state.renamingFor = null;
-      render();
-    }));
-    row.appendChild(makeRowButton('↗', t('actionOpenInNewTab'), '', () => {
-      brw.tabs.create({ url: entry.url });
-    }));
-    row.appendChild(makeRowButton('⊘', t('actionNeverTrack', Logic.domainOf(entry.url)), '',
-      () => excludeDomain(entry.url)));
-    row.appendChild(makeRowButton('×', t('actionRemove'), 'row-btn-delete', async () => {
+    const remove = document.createElement('button');
+    remove.className = 'row-btn';
+    remove.textContent = '×';
+    remove.title = t('actionRemove');
+    remove.addEventListener('click', async (event) => {
+      event.stopPropagation();
       const response = await sendMessage({ action: 'deleteEntries', urls: [entry.url] });
       await refresh();
-      if (response && response.removed) showUndoableStatus(t('statusRemovedOne'));
-    }));
-
-    row.addEventListener('click', () => {
-      if (entry.isOpen) {
-        focusOrOpen(entry.url);
-      } else {
-        brw.tabs.create({ url: entry.url });
-      }
+      if (response && response.removed && response.removed.length) showUndo(response.removed);
     });
+    row.appendChild(remove);
+
+    row.addEventListener('click', () => brw.tabs.create({ url: entry.url }));
     return row;
   }
 
-  function renderOpenRow(rec, now) {
+  function renderOpenRow(item) {
     const row = document.createElement('div');
     row.className = 'log-row';
-    row.title = rec.url;
+    row.title = t('rowGoToTab');
 
-    const ageMs = Logic.tabAgeMs(rec, now);
-    const minAgeMs = (state.settings.minDays || 0) * Logic.DAY_MS;
-    const remaining = minAgeMs > ageMs
-      ? t('rowUntilHistory', fmt(minAgeMs - ageMs))
-      : t('rowQualifiesNextScan');
-
-    row.appendChild(makeFavicon(rec.favIconUrl));
-    row.appendChild(makeInfoBlock(
-      rec.title, rec.url, remaining, [],
-      state.editingLabelsFor === rec.url));
-
-    const status = document.createElement('span');
-    status.className = 'log-status status-young';
-    status.textContent = t('rowOpenFor', fmt(ageMs));
-    row.appendChild(status);
-
-    // Both buttons promote into history immediately, so the row moves up into
-    // the History section without waiting for the scheduled scan.
-    row.appendChild(makeRowButton('+', t('actionAddNow'), '', async () => {
-      const response = await sendMessage({ action: 'addEntry', url: rec.url });
-      if (response && response.error) showStatus(response.error, true);
-      else showStatus(t('statusAddedToHistory'));
-      await refresh();
-    }));
-    row.appendChild(makeRowButton('tag', t('actionAddLabelPromotes'), '', () => {
-      state.editingLabelsFor = state.editingLabelsFor === rec.url ? null : rec.url;
-      state.renamingFor = null;
-      render();
-    }));
-    row.appendChild(makeRowButton('⊘', t('actionNeverTrack', Logic.domainOf(rec.url)), '',
-      () => excludeDomain(rec.url)));
-
-    row.addEventListener('click', () => focusOrOpen(rec.url));
+    const young = item.ageMs < (state.settings.minDays || 0) * Logic.DAY_MS;
+    row.appendChild(makeFavicon(item.favIconUrl));
+    row.appendChild(makeInfoBlock(item.title, item.url, '', ''));
+    row.appendChild(makeStatus(t('rowOpenFor', fmt(item.ageMs)), young));
+    row.addEventListener('click', () => focusOrOpen(item.rec));
     return row;
   }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   function render() {
     const now = Date.now();
-    const historyEntries = visibleHistory(now);
-    const openRecords = visibleOpenTabs(now);
+    const view = state.prefs.view;
 
-    // Summary
-    els.countHistory.textContent = state.history.length;
-    els.countOpen.textContent = state.openTabs.length;
-    els.scanInfo.innerHTML = '';
-    const scanSpan = document.createElement('span');
-    scanSpan.textContent = state.lastScanAt
-      ? t('summaryLastScan', formatAgo(state.lastScanAt, now), formatIn(state.nextScanAt, now))
-      : t('summaryNextScan', formatIn(state.nextScanAt, now));
-    els.scanInfo.appendChild(scanSpan);
-
-    // Chips
-    els.filterChips.querySelectorAll('.chip').forEach((chip) => {
-      chip.classList.toggle('active', chip.dataset.show === state.prefs.show);
-    });
-
-    // Sort controls
-    els.sortSelect.value = state.prefs.sortKey;
-    els.sortDirBtn.innerHTML = state.prefs.sortDir === 'asc' ? '&#8593;' : '&#8595;';
+    els.countClosed.textContent = state.history.filter((entry) => !entry.isOpen).length;
+    els.countOpen.textContent = uniqueOpenCount();
+    els.viewClosedBtn.classList.toggle('active', view === 'closed');
+    els.viewOpenBtn.classList.toggle('active', view === 'open');
+    populateSortOptions();
+    const sort = currentSort();
+    els.sortSelect.value = sort.key;
+    els.sortAscBtn.classList.toggle('active', sort.dir === 'asc');
+    els.sortDescBtn.classList.toggle('active', sort.dir === 'desc');
     els.searchClear.hidden = !state.prefs.query;
 
-    // Autocomplete suggestions: labels used in local history first (most-used
-    // first), then any known only from another synced device — so a fresh
-    // install still offers your usual vocabulary.
-    const known = Logic.collectLabels(state.history);
-    const seen = new Set(known.map((label) => label.toLowerCase()));
-    const fromSync = Object.entries(state.labelNames || {})
-      .filter(([key]) => !seen.has(key))
-      .map(([, name]) => name)
-      .sort((a, b) => a.localeCompare(b));
-    els.labelSuggestions.innerHTML = '';
-    for (const label of known.concat(fromSync)) {
-      const option = document.createElement('option');
-      option.value = label;
-      els.labelSuggestions.appendChild(option);
+    els.list.innerHTML = '';
+    let shown = 0;
+    if (view === 'closed') {
+      for (const entry of closedEntries(now)) {
+        els.list.appendChild(renderClosedRow(entry, now));
+        shown++;
+      }
+    } else {
+      for (const item of openItems(now)) {
+        els.list.appendChild(renderOpenRow(item));
+        shown++;
+      }
     }
 
-    // Sections
-    els.historyCount.textContent = `(${historyEntries.length})`;
-    els.openCount.textContent = `(${openRecords.length})`;
-    els.historyHeader.classList.toggle('section-collapsed', state.prefs.collapsedHistory);
-    els.openHeader.classList.toggle('section-collapsed', state.prefs.collapsedOpen);
-
-    els.historyList.innerHTML = '';
-    historyEntries.forEach((entry) => els.historyList.appendChild(renderHistoryRow(entry, now)));
-
-    els.openList.innerHTML = '';
-    openRecords.forEach((rec) => els.openList.appendChild(renderOpenRow(rec, now)));
-
-    els.welcomeText.hidden = state.history.length > 0 || state.openTabs.length > 0;
-
-    // Bulk delete button: only when a search narrows the history list.
-    const showBulk = state.prefs.query.trim() !== '' && historyEntries.length > 0;
-    els.deleteMatchingBtn.hidden = !showBulk;
-    if (showBulk && !state.confirmDelete) {
-      els.deleteMatchingBtn.textContent = t('deleteShownBtn', historyEntries.length);
+    let welcome = '';
+    if (!shown) {
+      if (state.prefs.query.trim()) welcome = t('noMatches');
+      else welcome = view === 'closed' ? t('welcomeClosed', state.settings.minDays) : t('welcomeOpen');
     }
+    els.welcomeText.textContent = welcome;
+    els.welcomeText.hidden = !welcome;
   }
 
   async function refresh() {
@@ -603,7 +365,6 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   // ---------------------------------------------------------------------------
 
   function populateLanguageSelect() {
-    const lang = state.settings.uiLang || 'en';
     els.uiLangSelect.innerHTML = '';
     Object.keys(UI_STRINGS).forEach((code) => {
       const option = document.createElement('option');
@@ -611,52 +372,56 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       option.textContent = `${UI_FLAGS[code] || ''} ${code.toUpperCase()}`.trim();
       els.uiLangSelect.appendChild(option);
     });
-    els.uiLangSelect.value = lang;
+    els.uiLangSelect.value = state.settings.uiLang || 'en';
+  }
+
+  // The sort options depend on the view. Rebuilt only when the view or the
+  // language changes, not on every render, so the minute tick never closes
+  // an open dropdown.
+  let sortOptionsFor = null;
+  function populateSortOptions() {
+    const view = state.prefs.view;
+    if (sortOptionsFor === view) return;
+    sortOptionsFor = view;
+    els.sortSelect.innerHTML = '';
+    for (const key of VIEW_SORT_KEYS[view]) {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = t(SORT_LABEL_KEYS[key]);
+      els.sortSelect.appendChild(option);
+    }
   }
 
   function applyStaticLabels() {
     document.title = t('appTitle');
+    // Firefox shows a fixed title in the sidebar's own header; Chrome's side
+    // panel and the popup have no such API, so this is a no-op there.
+    if (brw.sidebarAction && brw.sidebarAction.setTitle) {
+      brw.sidebarAction.setTitle({ title: t('appTitle') });
+    }
     els.uiLangSelect.title = t('uiLangLabel');
     els.searchInput.placeholder = t('searchPlaceholder');
     els.searchClear.title = t('searchClearLabel');
     els.settingsBtn.title = t('settingsLabel');
     els.themeToggle.title = t('themeToggleLabel');
 
-    els.sortLabel.textContent = t('sortLabel');
-    els.sortDirBtn.title = t('sortDirectionLabel');
-    const sortKeys = { duration: 'sortDuration', domain: 'sortUrl', title: 'sortName', label: 'sortTag' };
-    Array.from(els.sortSelect.options).forEach((option) => {
-      option.textContent = t(sortKeys[option.value] || option.value);
-    });
-
-    els.summaryHistoryLabel.textContent = t('summaryHistory');
-    els.summaryOpenLabel.textContent = t('summaryOpenNow');
-    els.filterAllBtn.textContent = t('filterAll');
-    els.filterOpenBtn.textContent = t('filterOpen');
-    els.filterClosedBtn.textContent = t('filterClosed');
-    els.historyHeaderLabel.textContent = t('sectionHistory');
-    els.openHeaderLabel.textContent = t('sectionOpenTabs');
-    els.welcomeText.textContent = t('welcomeText');
+    els.viewClosedLabel.textContent = t('viewClosed');
+    els.viewOpenLabel.textContent = t('viewOpen');
+    els.viewClosedBtn.title = t('viewClosedTitle');
+    els.viewOpenBtn.title = t('viewOpenTitle');
+    els.sortSelect.title = t('sortLabel');
+    els.sortAscBtn.title = t('sortAsc');
+    els.sortDescBtn.title = t('sortDesc');
+    sortOptionsFor = null;   // relabel the sort options in the new language
 
     els.minDaysLabel.textContent = t('settingsMinDays');
-    els.scanTimeLabel.textContent = t('settingsScanTime');
-    els.gapToleranceLabel.textContent = t('settingsGapTolerance');
-    els.gapToleranceLabel.title = t('settingsGapToleranceTitle');
     els.excludePrivateLabel.textContent = t('settingsExcludePrivate');
     els.excludePinnedLabel.textContent = t('settingsExcludePinned');
-    els.ignoreUrlFragmentLabel.textContent = t('settingsIgnoreFragment');
-    els.ignoreUrlFragmentLabel.title = t('settingsIgnoreFragmentTitle');
-    els.syncEnabledLabel.textContent = t('settingsSync');
-    els.syncEnabledLabel.title = t('settingsSyncTitle');
     els.excludeListLabel.textContent = t('settingsExcludeList');
     els.excludeList.placeholder = t('settingsExcludeListPlaceholder');
-    els.maxTitleLengthLabel.textContent = t('settingsMaxTitleLength');
-
-    els.scanNowBtn.textContent = t('scanNowBtn');
-    els.importBtn.textContent = t('importBtn');
+    els.backupLabel.textContent = t('settingsBackup');
     els.exportBtn.textContent = t('exportBtn');
-    els.exportNdjsonBtn.textContent = t('exportNdjson');
-    els.exportCsvBtn.textContent = t('exportCsv');
+    els.importBtn.textContent = t('importBtn');
     els.importAppendBtn.textContent = t('importAppend');
     els.importReplaceBtn.textContent = t('importReplace');
     els.importCancelBtn.textContent = t('importCancel');
@@ -668,34 +433,17 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
   function populateSettingsForm() {
     els.minDays.value = state.settings.minDays;
-    els.scanTime.value = state.settings.scanTime;
     els.excludePrivate.checked = state.settings.excludePrivate;
     els.excludePinned.checked = state.settings.excludePinned;
-    els.gapToleranceDays.value = state.settings.gapToleranceDays;
-    els.syncEnabled.checked = state.settings.syncEnabled !== false;
-    // Surface a sync failure (usually "not signed in") rather than pretending
-    // it worked; otherwise the checkbox would silently lie.
-    els.syncNote.textContent = state.settings.syncEnabled === false
-      ? ''
-      : (state.syncError ? t('statusSyncUnavailable') : t('settingsSyncNote'));
-    els.ignoreUrlFragment.checked = state.settings.ignoreUrlFragment !== false;
     els.excludeList.value = (state.settings.excludeList || []).join('\n');
-    els.maxTitleLength.value = state.settings.maxTitleLength;
   }
 
   async function saveSettingsFromForm() {
-    const minDays = Math.max(0, Math.min(365, parseInt(els.minDays.value, 10) || 0));
-    const maxTitleLength = Math.max(20, Math.min(300, parseInt(els.maxTitleLength.value, 10) || 100));
     const settings = {
-      minDays,
-      scanTime: els.scanTime.value || '05:00',
+      minDays: Math.max(0, Math.min(365, parseInt(els.minDays.value, 10) || 0)),
       excludePrivate: els.excludePrivate.checked,
       excludePinned: els.excludePinned.checked,
-      gapToleranceDays: Math.max(0, Math.min(3650, parseInt(els.gapToleranceDays.value, 10) || 0)),
-      syncEnabled: els.syncEnabled.checked,
-      ignoreUrlFragment: els.ignoreUrlFragment.checked,
       excludeList: Logic.parseExcludeList(els.excludeList.value),
-      maxTitleLength,
     };
     const response = await sendMessage({ action: 'saveSettings', settings });
     if (response && response.settings) {
@@ -706,7 +454,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   }
 
   // ---------------------------------------------------------------------------
-  // Export / import
+  // Export / import (NDJSON — the full history, as a backup)
   // ---------------------------------------------------------------------------
 
   function downloadFile(content, fileName, mimeType) {
@@ -721,24 +469,17 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  function exportHistory(format) {
-    els.exportMenu.hidden = true;
-    const now = Date.now();
+  function exportHistory() {
     const historyMap = {};
     state.history.forEach((entry) => { historyMap[entry.url] = entry; });
     const date = new Date().toISOString().slice(0, 10);
-    if (format === 'csv') {
-      downloadFile(Logic.toCSV(historyMap, now), `tab-history-${date}.csv`, 'text/csv');
-    } else {
-      downloadFile(Logic.toNDJSON(historyMap, now), `tab-history-${date}.ndjson`, 'application/x-ndjson');
-    }
+    downloadFile(Logic.toNDJSON(historyMap, Date.now()), `tab-history-${date}.ndjson`, 'application/x-ndjson');
     showStatus(t('statusExported', state.history.length));
   }
 
   async function handleImportFile(file) {
     try {
-      const text = await file.text();
-      const entries = Logic.parseImport(text);
+      const entries = Logic.parseImport(await file.text());
       if (!entries.length) {
         showStatus(t('statusNoEntries'), true);
         return;
@@ -772,16 +513,8 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   function wireEvents() {
     els.searchInput.addEventListener('input', () => {
       state.prefs.query = els.searchInput.value;
-      state.confirmDelete = false;
       savePrefs();
       render();
-    });
-
-    els.uiLangSelect.addEventListener('change', async () => {
-      state.settings.uiLang = els.uiLangSelect.value;
-      await sendMessage({ action: 'saveSettings', settings: { uiLang: state.settings.uiLang } });
-      applyStaticLabels();
-      render();   // durations and row text carry translated units too
     });
 
     els.searchClear.addEventListener('click', () => {
@@ -797,36 +530,33 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       }
     });
 
+    els.uiLangSelect.addEventListener('change', async () => {
+      state.settings.uiLang = els.uiLangSelect.value;
+      await sendMessage({ action: 'saveSettings', settings: { uiLang: state.settings.uiLang } });
+      applyStaticLabels();
+      render();   // durations and row text carry translated units too
+    });
+
+    [els.viewClosedBtn, els.viewOpenBtn].forEach((button) => {
+      button.addEventListener('click', () => {
+        state.prefs.view = button.dataset.view;
+        savePrefs();
+        render();
+      });
+    });
+
     els.sortSelect.addEventListener('change', () => {
-      state.prefs.sortKey = els.sortSelect.value;
+      currentSort().key = els.sortSelect.value;
       savePrefs();
       render();
     });
 
-    els.sortDirBtn.addEventListener('click', () => {
-      state.prefs.sortDir = state.prefs.sortDir === 'asc' ? 'desc' : 'asc';
-      savePrefs();
-      render();
-    });
-
-    els.filterChips.addEventListener('click', (event) => {
-      const chip = event.target.closest('.chip');
-      if (!chip) return;
-      state.prefs.show = chip.dataset.show;
-      savePrefs();
-      render();
-    });
-
-    els.historyHeader.addEventListener('click', () => {
-      state.prefs.collapsedHistory = !state.prefs.collapsedHistory;
-      savePrefs();
-      render();
-    });
-
-    els.openHeader.addEventListener('click', () => {
-      state.prefs.collapsedOpen = !state.prefs.collapsedOpen;
-      savePrefs();
-      render();
+    [els.sortAscBtn, els.sortDescBtn].forEach((button) => {
+      button.addEventListener('click', () => {
+        currentSort().dir = button.dataset.dir;
+        savePrefs();
+        render();
+      });
     });
 
     els.settingsBtn.addEventListener('click', () => {
@@ -835,53 +565,10 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       if (willShow) populateSettingsForm();
     });
 
-    [els.minDays, els.scanTime, els.excludePrivate, els.excludePinned,
-     els.gapToleranceDays, els.ignoreUrlFragment, els.excludeList, els.maxTitleLength,
-     els.syncEnabled]
+    [els.minDays, els.excludePrivate, els.excludePinned, els.excludeList]
       .forEach((input) => input.addEventListener('change', saveSettingsFromForm));
 
-    els.scanNowBtn.addEventListener('click', async () => {
-      els.scanNowBtn.disabled = true;
-      try {
-        const result = await sendMessage({ action: 'scanNow' });
-        if (result && result.error) {
-          showStatus(result.error, true);
-        } else {
-          showStatus(t('statusScanResult', result.added, result.updated, result.closed));
-        }
-        await refresh();
-      } finally {
-        els.scanNowBtn.disabled = false;
-      }
-    });
-
-    // Two-step bulk delete: first click arms, second click within 4s executes.
-    els.deleteMatchingBtn.addEventListener('click', async () => {
-      const urls = visibleHistory(Date.now()).map((entry) => entry.url);
-      if (!urls.length) return;
-      if (!state.confirmDelete) {
-        state.confirmDelete = true;
-        els.deleteMatchingBtn.textContent = t('deleteShownConfirm', urls.length);
-        setTimeout(() => {
-          state.confirmDelete = false;
-          render();
-        }, 4000);
-        return;
-      }
-      state.confirmDelete = false;
-      const response = await sendMessage({ action: 'deleteEntries', urls });
-      await refresh();
-      showUndoableStatus(t('statusRemovedMany', response.removed));
-    });
-
-    els.exportBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      els.exportMenu.hidden = !els.exportMenu.hidden;
-    });
-    els.exportNdjsonBtn.addEventListener('click', () => exportHistory('ndjson'));
-    els.exportCsvBtn.addEventListener('click', () => exportHistory('csv'));
-    document.addEventListener('click', () => { els.exportMenu.hidden = true; });
-
+    els.exportBtn.addEventListener('click', exportHistory);
     els.importBtn.addEventListener('click', () => {
       els.importFile.value = '';
       els.importFile.click();
@@ -900,22 +587,11 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
     // Live updates pushed by the background script.
     brw.runtime.onMessage.addListener((message) => {
-      if (message && message.type === 'state-changed') {
-        if (state.editingLabelsFor || state.renamingFor) {
-          // A background tab event must not steal an open editor; pull fresh
-          // data without redrawing over what is being typed.
-          fetchState();
-        } else {
-          refresh();
-        }
-      }
+      if (message && message.type === 'state-changed') refresh();
     });
 
-    // Keep the live duration badges ticking, but never redraw over an open
-    // label editor — that would drop what the user is typing.
-    setInterval(() => {
-      if (!state.editingLabelsFor && !state.renamingFor) render();
-    }, 60 * 1000);
+    // Keep the durations and "closed … ago" texts ticking.
+    setInterval(render, 60 * 1000);
   }
 
   // ---------------------------------------------------------------------------

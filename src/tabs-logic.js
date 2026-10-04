@@ -1,7 +1,7 @@
 // tabs-logic.js
 // Pure helpers shared by background.js and sidebar.js: age/duration math,
-// the promotion scan with dedup, import merge rules, and NDJSON/CSV
-// serialization. No browser APIs are used here, so everything is unit-testable
+// recording long-open tabs (on close and in the daily scan) with dedup,
+// import merge rules, and NDJSON serialization. No browser APIs are used here, so everything is unit-testable
 // and safe to load in any context (page, event page, service worker).
 
 (function (global) {
@@ -338,17 +338,53 @@
     return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
   }
 
+  // A fresh history entry for a tracker record that has been open since
+  // `rec.firstSeenAt` and was last seen open at `seenAt`.
+  function newEntry(rec, seenAt, settings, isOpen) {
+    return {
+      url: rec.url,
+      title: truncateTitle(rec.title, settings.maxTitleLength),
+      favIconUrl: rec.favIconUrl || '',
+      domain: domainOf(rec.url),
+      firstSeenAt: rec.firstSeenAt,
+      addedAt: seenAt,
+      lastSeenOpenAt: seenAt,
+      updatedCount: 0,
+      isOpen,
+      gapMs: 0,
+    };
+  }
+
+  /**
+   * Record a long-open tab at the moment it goes away (closed, navigated
+   * elsewhere, or missing after a browser restart).
+   *
+   * This is the path that matters most: without it a tab that crossed
+   * `minDays` after the last daily scan and was closed before the next one
+   * would never reach history — exactly the accidental close this extension
+   * exists for. URLs already in history are left to the caller, which stamps
+   * them closed. Mutates `history`; returns whether an entry was added.
+   */
+  function recordLongOpen(history, rec, endAt, settings, isOpen) {
+    if (!rec || !isTrackableUrl(rec.url) || history[rec.url]) return false;
+    if (isExcluded(rec.url, settings.excludeList)) return false;
+    if (endAt - rec.firstSeenAt < (settings.minDays || 0) * DAY_MS) return false;
+    history[rec.url] = newEntry(rec, endAt, settings, isOpen);
+    return true;
+  }
+
   /**
    * The daily promotion scan, as a pure function.
    *
-   * Promotes open tabs aged >= minDays into history, deduplicated by URL:
-   * a URL already in history is updated in place, never added twice. Open
-   * history entries whose URL is no longer among the open tabs are stamped
-   * closed. Returns a new history object plus added/updated/closed counts.
+   * Promotes open tabs aged >= minDays into history while they are still
+   * open, deduplicated by URL: a URL already in history is updated in place,
+   * never added twice. Open history entries whose URL is no longer among the
+   * open tabs are stamped closed. Returns a new history object plus
+   * added/updated/closed counts.
    *
    * @param {Object} history  url -> HistoryEntry
    * @param {Array}  openTabs tracker records [{url, title, favIconUrl, firstSeenAt, lastSeenAt}]
-   * @param {Object} settings needs minDays, maxTitleLength
+   * @param {Object} settings needs minDays, maxTitleLength, excludeList
    * @param {number} now
    */
   function promoteOpenTabs(history, openTabs, settings, now) {
@@ -360,37 +396,15 @@
     let updated = 0;
     let closed = 0;
 
-    // Several tabs may show the same URL; track the oldest firstSeenAt.
-    const oldestByUrl = {};
-    for (const rec of openTabs) {
-      if (!isTrackableUrl(rec.url)) continue;
-      const seen = oldestByUrl[rec.url];
-      if (!seen || rec.firstSeenAt < seen.firstSeenAt) {
-        oldestByUrl[rec.url] = rec;
-      }
-    }
-
+    const oldestByUrl = oldestRecordByUrl(openTabs);
     const minAgeMs = (settings.minDays || 0) * DAY_MS;
     for (const url of Object.keys(oldestByUrl)) {
       const rec = oldestByUrl[url];
       if (isExcluded(url, settings.excludeList)) continue;
       if (tabAgeMs(rec, now) < minAgeMs) continue;
-      const title = truncateTitle(rec.title, settings.maxTitleLength);
       const existing = result[url];
       if (!existing) {
-        result[url] = {
-          url,
-          title,
-          favIconUrl: rec.favIconUrl || '',
-          domain: domainOf(url),
-          firstSeenAt: rec.firstSeenAt,
-          addedAt: now,
-          lastSeenOpenAt: now,
-          updatedCount: 0,
-          isOpen: true,
-          labels: [],
-          gapMs: 0,
-        };
+        result[url] = newEntry(rec, now, settings, true);
         added++;
       } else {
         // Reopened after being closed: continue the same episode unless the
@@ -398,11 +412,7 @@
         if (!existing.isOpen) {
           resumeStint(existing, rec.firstSeenAt, now, settings);
         }
-        // A user-renamed entry keeps its title; only auto-titles refresh, or
-        // every scan would silently undo the rename.
-        if (!existing.titleCustom) {
-          existing.title = title;
-        }
+        existing.title = truncateTitle(rec.title, settings.maxTitleLength) || existing.title;
         existing.favIconUrl = rec.favIconUrl || existing.favIconUrl || '';
         existing.lastSeenOpenAt = now;
         existing.updatedCount = (existing.updatedCount || 0) + 1;
@@ -423,29 +433,15 @@
     return { history: result, added, updated, closed };
   }
 
-  // Labels are short free-text tags ("Art", "Español", "Sci-fi"). Normalized to
-  // trimmed, deduplicated, case-preserving strings; comparison is case-insensitive
-  // so "art" and "Art" never coexist.
-  function normalizeLabels(raw) {
-    if (!Array.isArray(raw)) {
-      // Tolerate a "a; b" / "a, b" string, as produced by the CSV export.
-      if (typeof raw === 'string' && raw.trim()) {
-        raw = raw.split(/[;,]/);
-      } else {
-        return [];
-      }
+  // Several tabs may show the same URL; the oldest one defines its age.
+  function oldestRecordByUrl(records) {
+    const oldest = {};
+    for (const rec of records) {
+      if (!isTrackableUrl(rec.url)) continue;
+      const seen = oldest[rec.url];
+      if (!seen || rec.firstSeenAt < seen.firstSeenAt) oldest[rec.url] = rec;
     }
-    const seen = new Set();
-    const result = [];
-    for (const item of raw) {
-      const label = String(item == null ? '' : item).trim().replace(/\s+/g, ' ');
-      if (!label) continue;
-      const key = label.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      result.push(label);
-    }
-    return result.sort((a, b) => a.localeCompare(b));
+    return oldest;
   }
 
   // Validate/coerce a raw imported object into a HistoryEntry, or null.
@@ -463,69 +459,8 @@
       lastSeenOpenAt: num(raw.lastSeenOpenAt, firstSeenAt),
       updatedCount: Math.max(0, Math.floor(Number(raw.updatedCount) || 0)),
       isOpen: Boolean(raw.isOpen),
-      labels: normalizeLabels(raw.labels),
-      titleCustom: Boolean(raw.titleCustom),
       gapMs: Math.max(0, Number(raw.gapMs) || 0),
     };
-  }
-
-  // Label chips use the curated --category-1..7 swatches: bounded, on-brand, and
-  // legible in both themes. A colour is claimed on a label's first use by taking
-  // the least-used slot, so the first seven labels never collide (a plain hash
-  // would collide almost immediately). Assignments persist, so a label keeps its
-  // colour for good. Cosmetic only — deliberately NOT written into the export, so
-  // the NDJSON stays pure data for Python/grep.
-  const LABEL_COLOR_COUNT = 7;
-
-  function labelColorIndex(labelColors, label) {
-    const key = label.toLowerCase();
-    if (Number.isInteger(labelColors[key])) return labelColors[key];
-    const counts = new Array(LABEL_COLOR_COUNT).fill(0);
-    for (const index of Object.values(labelColors)) {
-      if (Number.isInteger(index) && index >= 0 && index < LABEL_COLOR_COUNT) counts[index]++;
-    }
-    let best = 0;
-    for (let i = 1; i < LABEL_COLOR_COUNT; i++) {
-      if (counts[i] < counts[best]) best = i;
-    }
-    labelColors[key] = best;
-    return best;
-  }
-
-  // Claim colours for any labels not yet known, and remember each label's
-  // display casing so a device that has never seen the label locally can still
-  // suggest it properly. Mutates and reports whether anything changed, so the
-  // caller can skip a redundant write.
-  function syncLabelColors(labelColors, entries, labelNames) {
-    let changed = false;
-    for (const label of collectLabels(entries)) {
-      const key = label.toLowerCase();
-      if (!Number.isInteger(labelColors[key])) {
-        labelColorIndex(labelColors, label);
-        changed = true;
-      }
-      if (labelNames && labelNames[key] !== label) {
-        labelNames[key] = label;
-        changed = true;
-      }
-    }
-    return changed;
-  }
-
-  // All labels ever used, most-used first — powers the autocomplete datalist.
-  function collectLabels(entries) {
-    const counts = new Map();
-    for (const entry of entries) {
-      for (const label of entry.labels || []) {
-        const key = label.toLowerCase();
-        const current = counts.get(key);
-        if (current) current.count++;
-        else counts.set(key, { label, count: 1 });
-      }
-    }
-    return Array.from(counts.values())
-      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-      .map((item) => item.label);
   }
 
   /**
@@ -555,16 +490,8 @@
         current.addedAt = Math.min(current.addedAt, entry.addedAt);
         current.lastSeenOpenAt = Math.max(current.lastSeenOpenAt, entry.lastSeenOpenAt);
         current.updatedCount = Math.max(current.updatedCount || 0, entry.updatedCount || 0);
-        // A custom title is a deliberate edit, so it outranks the file's title.
-        if (entry.titleCustom && !current.titleCustom) {
-          current.title = entry.title;
-          current.titleCustom = true;
-        } else if (!current.title && entry.title) {
-          current.title = entry.title;
-        }
+        if (!current.title && entry.title) current.title = entry.title;
         if (!current.favIconUrl && entry.favIconUrl) current.favIconUrl = entry.favIconUrl;
-        // Labels are additive: an append import never drops tags either side has.
-        current.labels = normalizeLabels([...(current.labels || []), ...(entry.labels || [])]);
       }
     }
     return result;
@@ -580,35 +507,6 @@
     return entries
       .map((entry) => JSON.stringify({ ...entry, durationMs: entryDurationMs(entry, now) }))
       .join('\n') + (entries.length ? '\n' : '');
-  }
-
-  function csvEscape(value) {
-    const text = String(value == null ? '' : value);
-    return '"' + text.replace(/"/g, '""') + '"';
-  }
-
-  function toCSV(history, now) {
-    const header = ['url', 'title', 'domain', 'labels', 'firstSeenAt', 'addedAt', 'lastSeenOpenAt', 'isOpen', 'durationMs', 'durationHuman'];
-    const lines = [header.join(',')];
-    const entries = Object.values(history)
-      .slice()
-      .sort((a, b) => a.addedAt - b.addedAt);
-    for (const entry of entries) {
-      const durationMs = entryDurationMs(entry, now);
-      lines.push([
-        csvEscape(entry.url),
-        csvEscape(entry.title),
-        csvEscape(entry.domain),
-        csvEscape((entry.labels || []).join('; ')),
-        new Date(entry.firstSeenAt).toISOString(),
-        new Date(entry.addedAt).toISOString(),
-        new Date(entry.lastSeenOpenAt).toISOString(),
-        entry.isOpen,
-        durationMs,
-        csvEscape(formatDuration(durationMs)),
-      ].join(','));
-    }
-    return lines.join('\n') + '\n';
   }
 
   // Accepts NDJSON (one object per line) or a plain JSON array.
@@ -628,121 +526,34 @@
       .map((line) => JSON.parse(line));
   }
 
-  // --- Cross-device sync ----------------------------------------------------
-
-  /**
-   * What travels between devices: the settings object (minus device-local keys)
-   * plus the label vocabulary. History is deliberately absent — a few hundred
-   * entries blow past the 8 KB-per-item sync quota, and the NDJSON export exists
-   * for moving the full log.
-   */
-  function buildSyncPayload(settings, labelColors, labelNames, updatedAt, localOnlyKeys) {
-    const shared = {};
-    for (const [key, value] of Object.entries(settings || {})) {
-      if ((localOnlyKeys || []).includes(key)) continue;
-      shared[key] = value;
-    }
-    return {
-      settings: shared,
-      labelColors: { ...(labelColors || {}) },
-      labelNames: { ...(labelNames || {}) },
-      updatedAt: updatedAt || 0,
-    };
-  }
-
-  /**
-   * Merge a remote sync blob into local state. Two different rules, on purpose:
-   *
-   * - **Settings are last-write-wins** by `updatedAt`. They are single-valued
-   *   preferences, so the most recent deliberate edit should stand. This
-   *   includes the stop list: unioning it would resurrect a domain you had just
-   *   removed, which is worse than losing a stale edit.
-   * - **Labels are unioned.** A label known on either device should be offered
-   *   on both, and losing a tag because the other device wrote later would be
-   *   surprising. On a colour clash the local assignment wins, so a label never
-   *   changes colour under you.
-   *
-   * Returns the merged state plus whether anything actually changed, so the
-   * caller can skip a redundant write and a redundant re-render.
-   */
-  function mergeSyncedPrefs(local, remote, localOnlyKeys) {
-    const result = {
-      settings: { ...(local.settings || {}) },
-      labelColors: { ...(local.labelColors || {}) },
-      labelNames: { ...(local.labelNames || {}) },
-      updatedAt: Number(local.updatedAt) || 0,
-      changed: false,
-    };
-    if (!remote || typeof remote !== 'object') return result;
-
-    const remoteAt = Number(remote.updatedAt) || 0;
-    if (remoteAt > result.updatedAt && remote.settings && typeof remote.settings === 'object') {
-      for (const [key, value] of Object.entries(remote.settings)) {
-        if ((localOnlyKeys || []).includes(key)) continue;
-        if (JSON.stringify(result.settings[key]) !== JSON.stringify(value)) {
-          result.settings[key] = value;
-          result.changed = true;
-        }
-      }
-      result.updatedAt = remoteAt;
-    }
-
-    for (const [key, index] of Object.entries(remote.labelColors || {})) {
-      if (!Number.isInteger(result.labelColors[key]) && Number.isInteger(index)) {
-        result.labelColors[key] = index;
-        result.changed = true;
-      }
-    }
-    for (const [key, name] of Object.entries(remote.labelNames || {})) {
-      if (!result.labelNames[key] && typeof name === 'string' && name) {
-        result.labelNames[key] = name;
-        result.changed = true;
-      }
-    }
-    return result;
-  }
-
-  const SORT_KEYS = ['duration', 'domain', 'title', 'label'];
+  // Sort keys: 'name' (title), 'opened' (firstSeenAt), 'duration' (how long it
+  // was open), 'closed' (close time; closed entries only). 'closed' is the main
+  // view's default, because the browser's own history only orders by when a
+  // page was opened. Works on history entries and on open-tab items shaped
+  // like them ({ title, firstSeenAt, lastSeenOpenAt, isOpen }); ties fall
+  // back to the title.
+  const SORT_KEYS = ['name', 'opened', 'duration', 'closed'];
+  const SORT_DIRS = ['asc', 'desc'];
 
   function sortEntries(entries, key, dir, now) {
     const sign = dir === 'asc' ? 1 : -1;
-    return entries.slice().sort((a, b) => {
-      // Untagged entries always sink to the bottom, in either direction —
-      // flipping the sort should reorder the tags, not bury them.
-      if (key === 'label') {
-        const aLabel = (a.labels && a.labels[0]) || '';
-        const bLabel = (b.labels && b.labels[0]) || '';
-        if (!aLabel && !bLabel) return a.title.localeCompare(b.title);
-        if (!aLabel) return 1;
-        if (!bLabel) return -1;
-        return sign * (aLabel.localeCompare(bLabel) || a.title.localeCompare(b.title));
-      }
-      let cmp;
-      switch (key) {
-        case 'domain':
-          cmp = a.domain.localeCompare(b.domain) || a.title.localeCompare(b.title);
-          break;
-        case 'title':
-          cmp = a.title.localeCompare(b.title);
-          break;
-        case 'duration':
-        default:
-          cmp = entryDurationMs(a, now) - entryDurationMs(b, now);
-          break;
-      }
-      return sign * cmp;
-    });
+    const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '');
+    const value = {
+      opened: (entry) => entry.firstSeenAt || 0,
+      duration: (entry) => entryDurationMs(entry, now),
+      closed: (entry) => entry.lastSeenOpenAt || 0,
+    }[key];
+    return entries.slice().sort((a, b) =>
+      value ? (sign * (value(a) - value(b)) || byTitle(a, b)) : sign * byTitle(a, b));
   }
 
   function matchesQuery(entry, query) {
-    if (!query) return true;
-    const q = query.toLowerCase().trim();
+    const q = String(query || '').toLowerCase().trim();
     if (!q) return true;
     return (
       (entry.title || '').toLowerCase().includes(q) ||
       (entry.url || '').toLowerCase().includes(q) ||
-      (entry.domain || '').toLowerCase().includes(q) ||
-      (entry.labels || []).some((label) => label.toLowerCase().includes(q))
+      (entry.domain || '').toLowerCase().includes(q)
     );
   }
 
@@ -762,20 +573,16 @@
     formatDuration,
     splitUrlForDisplay,
     truncateMiddle,
+    newEntry,
+    recordLongOpen,
     promoteOpenTabs,
+    oldestRecordByUrl,
     normalizeEntry,
-    normalizeLabels,
-    collectLabels,
-    LABEL_COLOR_COUNT,
-    labelColorIndex,
-    syncLabelColors,
-    buildSyncPayload,
-    mergeSyncedPrefs,
     mergeImport,
     toNDJSON,
-    toCSV,
     parseImport,
     SORT_KEYS,
+    SORT_DIRS,
     sortEntries,
     matchesQuery,
   };

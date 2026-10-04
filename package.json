@@ -1,7 +1,7 @@
 {
   "name": "tab-history-long-open-tabs",
   "version": "2.0.0",
-  "description": "Sidebar history of long-open browser tabs: how long each tab stayed open, searchable and sortable.",
+  "description": "Find tabs you kept open for days and then closed: a list of long-open tabs, most recently closed first.",
   "private": true,
   "type": "module",
   "scripts": {

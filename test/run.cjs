@@ -28,7 +28,7 @@ function loadLogic() {
 // panel API), 'yandex' (Chrome API surface, YaBrowser user agent).
 // `local` is the storage.local backing object; `tabs` what tabs.query reports.
 function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
-  const listeners = { message: null, clicked: [], startup: [] };
+  const listeners = { message: null, clicked: [], startup: [], removed: [], updated: [] };
   const panel = { behavior: [], popups: [], toggled: 0 };
   const copy = (v) => JSON.parse(JSON.stringify(v));
   const area = (backing) => ({
@@ -49,7 +49,8 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
       sendMessage: () => Promise.resolve(),
     },
     storage: { local: area(local), sync: area({}), onChanged: event() },
-    tabs: { query: () => Promise.resolve(copy(tabs)), onCreated: event(), onUpdated: event(), onRemoved: event() },
+    tabs: { query: () => Promise.resolve(copy(tabs)), onCreated: event(),
+      onUpdated: event(listeners.updated), onRemoved: event(listeners.removed) },
     alarms: { get: () => Promise.resolve(undefined), create() {}, clear: () => Promise.resolve(true), onAlarm: event() },
     action: { onClicked: event(listeners.clicked), setPopup: (p) => { panel.popups.push(p); return Promise.resolve(); } },
   };
@@ -80,7 +81,11 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   run(s, 'src/tabs-logic.js');
   run(s, 'src/background.js');
   const ask = (message) => new Promise((resolve) => listeners.message(message, {}, resolve));
-  return { s, panel, listeners, local, ask };
+  // Fire a tab event and let the async handler (load, record, save) finish.
+  const settle = async () => { for (let i = 0; i < 10; i++) await tick(); };
+  const closeTab = async (tabId) => { listeners.removed.forEach((f) => f(tabId)); await settle(); };
+  const navigate = async (tab) => { listeners.updated.forEach((f) => f(tab.id, { url: tab.url }, tab)); await settle(); };
+  return { s, panel, listeners, local, ask, closeTab, navigate };
 }
 
 (async () => {
@@ -128,6 +133,35 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   L.resumeStint(entry, 50 * DAY, 50 * DAY, { gapToleranceDays: 30 });
   eq('long break restarts', [entry.firstSeenAt, entry.gapMs], [50 * DAY, 0]);
 
+  section('logic: record a long-open tab when it goes away');
+  const settings = { minDays: 7, maxTitleLength: 100, excludeList: ['mail.google.com'] };
+  let history = {};
+  const longRec = { url: 'https://example.com/long', title: 'Long', firstSeenAt: now - 9 * DAY };
+  eq('open >= minDays: recorded', L.recordLongOpen(history, longRec, now, settings, false), true);
+  eq('recorded with its close time', [history[longRec.url].isOpen, history[longRec.url].lastSeenOpenAt], [false, now]);
+  eq('already in history: left to the caller', L.recordLongOpen(history, longRec, now, settings, false), false);
+  eq('younger than minDays: skipped',
+    L.recordLongOpen(history, { url: 'https://example.com/short', firstSeenAt: now - DAY }, now, settings, false), false);
+  eq('stop-listed site: skipped',
+    L.recordLongOpen(history, { url: 'https://mail.google.com/x', firstSeenAt: 0 }, now, settings, false), false);
+
+  section('logic: sort');
+  const entries = [
+    { title: 'a', isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 20 * DAY },        // open 20d, closed earlier
+    { title: 'b', isOpen: false, firstSeenAt: 25 * DAY, lastSeenOpenAt: 33 * DAY }, // open 8d, closed last
+  ];
+  const order = (key, dir) => L.sortEntries(entries, key, dir, now).map((e) => e.title).join('');
+  eq('close time: newest first / oldest first', [order('closed', 'desc'), order('closed', 'asc')], ['ba', 'ab']);
+  eq('duration: longest first / shortest first', [order('duration', 'desc'), order('duration', 'asc')], ['ab', 'ba']);
+  eq('open time: newest first / oldest first', [order('opened', 'desc'), order('opened', 'asc')], ['ba', 'ab']);
+  eq('name: A-Z / Z-A', [order('name', 'asc'), order('name', 'desc')], ['ab', 'ba']);
+  eq('open items sort by duration up to now',
+    L.sortEntries([{ title: 'x', isOpen: true, firstSeenAt: now - DAY }, { title: 'y', isOpen: true, firstSeenAt: now - 3 * DAY }],
+      'duration', 'desc', now).map((e) => e.title), ['y', 'x']);
+  eq('search matches title or URL, not other fields',
+    [L.matchesQuery({ title: 'Recipe', url: 'https://x/' }, 'reci'), L.matchesQuery({ title: 'x', url: 'https://x/', labels: ['art'] }, 'art')],
+    [true, false]);
+
   section('toolbar icon: sidebar primary, popup fallback');
   let env = loadBackground({ kind: 'firefox' });
   await tick();
@@ -163,6 +197,57 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   env = loadBackground({ kind: 'chrome', local, tabs: tabs.map((t) => ({ ...t, id: 99 })) });
   state = await env.ask({ action: 'getState' });
   eq('new tab id, same URL: first-seen time kept', state.openTabs[0].firstSeenAt, firstSeen);
+
+  section('background: closing a long-open tab records it at once (no scan needed)');
+  const realNow = Date.now();
+  const tracker = (url, ageDays) => ({ url, title: url, favIconUrl: '', windowId: 1,
+    firstSeenAt: realNow - ageDays * DAY, lastSeenAt: realNow });
+  const seeded = (records) => ({
+    settings: { minDays: 7 }, history: {}, lastScanAt: realNow,
+    openTabs: Object.fromEntries(records.map((rec, i) => [i + 1, rec])),
+  });
+  let store = seeded([tracker('https://example.com/old', 9), tracker('https://example.com/new', 1)]);
+  const both = [{ id: 1, url: 'https://example.com/old', title: 'x', windowId: 1 },
+    { id: 2, url: 'https://example.com/new', title: 'x', windowId: 1 }];
+  env = loadBackground({ kind: 'chrome', local: store, tabs: both });
+  await env.ask({ action: 'getState' });
+  await env.closeTab(1);
+  await env.closeTab(2);
+  state = await env.ask({ action: 'getState' });
+  eq('9-day tab recorded as closed, 1-day tab not',
+    state.history.map((e) => [e.url, e.isOpen]), [['https://example.com/old', false]]);
+  eq('recorded duration covers the time it was open',
+    Math.round(L.entryDurationMs(state.history[0], Date.now()) / DAY), 9);
+
+  store = seeded([tracker('https://example.com/article', 8)]);
+  const article = { id: 1, url: 'https://example.com/article', title: 'x', windowId: 1 };
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [article] });
+  await env.ask({ action: 'getState' });
+  await env.navigate({ ...article, url: 'https://example.com/next-page' });
+  state = await env.ask({ action: 'getState' });
+  eq('navigating away from a long-open page records it too',
+    state.history.map((e) => [e.url, e.isOpen]), [['https://example.com/article', false]]);
+
+  store = seeded([tracker('https://example.com/lost', 10)]);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [] });
+  state = await env.ask({ action: 'getState' });
+  eq('tab missing after a browser restart is recorded with its last heartbeat',
+    state.history.map((e) => [e.url, e.isOpen, e.lastSeenOpenAt]), [['https://example.com/lost', false, realNow]]);
+
+  section('background: remove and undo');
+  const removedReply = await env.ask({ action: 'deleteEntries', urls: ['https://example.com/lost'] });
+  eq('removed entries are handed to the panel', removedReply.removed.map((e) => e.url), ['https://example.com/lost']);
+  eq('and gone from history', (await env.ask({ action: 'getState' })).history, []);
+  // A fresh worker (the old one was unloaded) still accepts the panel's undo.
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [] });
+  const restoredReply = await env.ask({ action: 'restoreEntries', entries: removedReply.removed });
+  state = await env.ask({ action: 'getState' });
+  eq('undo after a worker restart restores it', [restoredReply.restored, state.history.length], [1, 1]);
+
+  section('background: settings from older versions are dropped');
+  env = loadBackground({ kind: 'chrome', local: { settings: { minDays: 3, syncEnabled: true, scanTime: '09:00' } } });
+  const { settings: loaded } = await env.ask({ action: 'getSettings' });
+  eq('known keys kept, obsolete keys gone', [loaded.minDays, 'syncEnabled' in loaded, 'scanTime' in loaded], [3, false, false]);
 
   console.log(`\n${checks - fails}/${checks} checks passed`);
   process.exit(fails ? 1 : 0);

@@ -3,14 +3,17 @@
   <span style="font-size:2.5em; vertical-align: middle;"><b>Tab History for Long-Open Tabs</b></span>
 </p></h1>
 
-A sidebar browser extension (Firefox primary, Chrome secondary) that answers the question
-ordinary browser history cannot: **how long did each tab stay open?**
+**Tab History** — a Firefox, Chrome and Opera extension that finds the tabs you kept open
+for days and then closed, most recently closed first.
 
-Tabs you keep open are often the ones you postponed for later reading. This extension
-tracks how long every tab has been open, and once a day promotes tabs that survived at
-least *N* days (default 7, configurable) into a persistent, searchable history —
-deduplicated by URL. If such a tab is later closed (accidentally or not), it stays in
-history with its final open-duration and can be reopened with one click.
+Browser history lists pages by when you *opened* them. A tab you opened a month ago, kept
+for later reading, and closed by accident yesterday sits a month deep in that list,
+among hundreds of pages you looked at for seconds. The browser's own "Recently closed"
+menu keeps only the last couple of dozen closed tabs, short-lived ones included.
+
+Tab History keeps a separate list of just the tabs that stayed open for at least *N* days
+(default 7) — usually the ones that mattered — ordered by when they were **closed**. One
+click reopens a tab.
 
 ## 🚀 Quick Start
 
@@ -55,64 +58,40 @@ extension sidebar)
 
 ## ✨ Features
 
-- **Sidebar-first UI** — everything (history, search, sort, settings, export/import)
-  lives in one panel: `sidebar_action` on Firefox, `side_panel` on Chrome.
-- **Open-duration tracking** — an internal tracker notes when each tab was first seen
-  (browsers do not expose tab creation time), with a heartbeat and startup
-  reconciliation so ages survive browser restarts and crashes.
-- **Daily promotion scan** — once a day (configurable time), tabs open ≥ `minDays`
-  enter history; already-known URLs are updated in place, never duplicated. A
-  **Scan now** button runs it on demand.
-- **Labels** — tag any entry (or any open tab) with short GitHub-style labels like
-  `Art`, `Español`, `Sci-fi`. The input autocompletes from labels you've used before,
-  chips are colour-coded per label, and clicking one filters by it. Labels are
-  searchable, sortable, and included in export/import. Tagging a tab that hasn't yet
-  reached the day threshold adds it to history right away.
-- **Search & sort** — live search across title, URL, domain, and labels (with an
-  inline ✕ to clear); sort by Duration, Url, Name, or Tag, in both directions.
-  All view state persists across sidebar reopens.
-- **Editing** — rename an entry (renames stick; scans never overwrite them), remove
-  it, or add an open tab to history immediately without waiting for the scan.
-  Every removal offers an **Undo**. Bulk-delete everything matching the current
-  search or domain, with confirmation.
-- **Stop list** — sites you'd never forget (Gmail, Calendar, Google Translate,
-  WhatsApp/Telegram web by default) are never tracked, keeping history to the pages
-  that are actually easy to lose. Editable in settings, or press ⊘ on any row to
-  exclude that site and purge what it already logged.
-- **9 interface languages** — English, Spanish, Italian, French, German, Russian,
-  Korean, Japanese, Chinese. Picked up from your browser on first run, switchable
-  live from the toolbar; even duration units follow the language (`25d` / `25д`).
-- **Readable URLs** — each row shows the domain plus as much of the path as fits,
-  middle-truncated (`…`) so the distinctive tail of a link survives; the full URL is
-  in the tooltip.
-- **Gap-tolerant durations** — close a tab by accident and reopen it and the count
-  continues rather than restarting, like a night of sleep with wake breaks still
-  being one night. Only after a long absence (30 days by default) does it count as
-  a new episode.
-- **Sane URL identity** — the `#fragment` is ignored by default, so single-page apps
-  like Gmail count as one long-lived page instead of restarting the clock on every
-  item; tracking parameters (`utm_*`, `fbclid`, …) are stripped so the same page from
-  two different links is one entry.
-- **Per-site rules for media** — one YouTube video is one entry however you reached it
-  (`?t=90`, `youtu.be/ID`, `/shorts/ID`, `m.`/`music.` hosts), and the same holds for
-  Pinterest pins, Instagram posts, Facebook posts, X/Twitter posts, Reddit threads,
-  TikTok and Vimeo. Without this a single video accumulates several short durations
-  instead of one long one.
-- **Cross-device sync** — settings, the stop list and your label vocabulary follow
-  your signed-in browser account (Firefox Account / Google account), so a second
-  machine starts configured and autocompletes the same labels. History stays local
-  by design: it does not fit the sync quota, and export/import moves the full log.
-- **Export / import** — export as NDJSON (one JSON object per line: `grep`-friendly,
-  `pd.read_json(path, lines=True)` in Python) or CSV. Import asks **Replace** or
-  **Append** (append merges, deduplicated by URL).
+- **Open view** — the tabs open right now, longest open first; click one to jump to it.
+  Tabs that have not reached *N* days yet are shown muted.
+- **Closed view (default)** — tabs that stayed open for days, newest close first, each
+  with how long it was open (`open 23d`) and when it closed (`closed 2h ago`; hover for
+  the exact date). Click to reopen; × removes an entry, with **Undo**.
+- **Sort** either view by name, open time, duration or (Closed) close time, with ↑ / ↓
+  for ascending / descending; each view remembers its own order.
+- **Recorded the moment it goes away** — closing a long-open tab, navigating it to
+  another page, or losing it in a browser crash records it immediately; a daily scan
+  also records long-open tabs while they are still open, so a backup always has them.
+- **Search** across titles and URLs; click a row's domain to filter by it.
+- **One URL, one entry** — the `#fragment` and tracking parameters (`utm_*`, `fbclid`, …)
+  are ignored, and per-site rules fold the many URL shapes of one YouTube video,
+  Pinterest pin, Instagram/Facebook/X post, Reddit thread, TikTok or Vimeo into one.
+  A tab closed and reopened within 30 days continues its count instead of restarting.
+- **Stop list** — always-open apps (Gmail, Calendar, Translate, WhatsApp/Telegram web by
+  default) are never tracked. Private windows are excluded by default; pinned tabs can be.
+- **Backup** — export the whole history as NDJSON (one JSON object per line;
+  `pd.read_json(path, lines=True)` in Python) and import it back (**Append** or
+  **Replace**).
+- **Sidebar in Firefox and Opera, side panel in Chrome.** Chrome and Opera builds also
+  carry a toolbar popup with the same UI as a fallback for browsers without an extension
+  sidebar, e.g. **Yandex Browser** installing from the Chrome or Opera store.
+- **9 interface languages** (English, Spanish, Italian, French, German, Russian, Korean,
+  Japanese, Chinese) and light / dark themes.
+- **Nothing leaves your browser** — see [PRIVACY.md](PRIVACY.md).
 
 ---
 
-## 🚀 Build
+## 🛠️ Development
 
-No dependencies; the build copies `src/` plus the right manifest into `dist/`. The
-Chrome and Opera builds also get a toolbar popup generated from `sidebar.html`
-(plus `targets/popup/` and, for Chrome, `targets/chrome/`):
+Requires [Node.js](https://nodejs.org/); no dependencies. The build copies `src/` plus the
+right manifest into `dist/`. The Chrome and Opera builds also get a toolbar popup
+generated from `sidebar.html` (plus `targets/popup/` and, for Chrome, `targets/chrome/`):
 
 ```bash
 npm run build            # lint + tests + all three builds
@@ -125,112 +104,63 @@ npm run package:chrome   # -> browser-tabs-chrome.zip
 npm run package:opera    # -> browser-tabs-opera.zip
 ```
 
-## 📦 Panel per browser
+After changing anything in `src/`, rebuild and press **Reload** on the extension.
+
+### Panel per browser
 
 | Browser | Toolbar icon opens |
 |---|---|
 | Firefox | the sidebar |
 | Chrome | the side panel (the popup is removed at startup once the side panel accepts the click) |
-| Opera | the popup; the sidebar opens from Opera's own sidebar icon |
+| Opera | the popup; the sidebar opens from Opera's own sidebar icon (pin it to keep it open) |
 | Yandex (Chrome or Opera build) | the popup — no extension sidebar there |
 
----
-
-## 🛠️ Project Structure
+### Project layout
 
 ```
-browser-tabs/
-├── package.json          # Build scripts (lint + per-browser builds)
-├── build.cjs             # Dependency-free build: src/ + manifest → dist/[browser]/
-├── manifests/
-│   ├── firefox.json      # MV3, sidebar_action, background.scripts
-│   ├── chrome.json       # MV3, side_panel + popup fallback, service_worker
-│   └── opera.json        # MV3, sidebar_action + popup, service_worker
-├── targets/
-│   ├── popup/popup.css   # Popup sizing, added to the Chrome and Opera builds
-│   └── chrome/popup.js   # Chrome-only "open in side panel" button
-├── test/run.cjs          # Regression tests (node vm, no browser)
-├── src/
-│   ├── sidebar.html      # The single UI page
-│   ├── sidebar.js        # Sidebar logic (search/sort/edit/export/import)
-│   ├── background.js     # Tracker + daily scan + message API
-│   ├── tabs-logic.js     # Pure helpers: durations, promotion/dedup, URL rules,
-│   │                     #   NDJSON/CSV, sync merge
-│   ├── defaults.js       # DEFAULT_SETTINGS + shared constants (incl. sync)
-│   ├── theme.js          # Dark/light toggle, persisted (dark default)
-│   ├── styles.css        # Shared design tokens + components
-│   └── icons/
-└── dist/                 # Build output (gitignored)
+src/
+  background.js        tracker, recording on close, daily scan, message API
+  tabs-logic.js        pure helpers: durations, recording/dedup, URL rules, NDJSON
+  defaults.js          default settings + fixed behaviour constants
+  sidebar.html/.js     the UI (also used as the Chrome/Opera toolbar popup)
+  theme.js, styles.css shared look with the sibling extensions (dark default)
+  i18n.js, locales/    interface translations
+targets/
+  popup/               popup sizing, added to the Chrome and Opera builds
+  chrome/              Chrome-only popup extra ("open in side panel" button)
+manifests/             per-browser manifest.json
+test/run.cjs           regression tests (node vm, no browser)
 ```
 
-### Data model (short version)
+### Data model
 
-Everything is stored in `storage.local`:
+Everything is kept in `storage.local`, on this device only:
 
 - `openTabs` (tracker): `tabId → { url, title, favIconUrl, windowId, firstSeenAt,
-  lastSeenAt }` — internal working data. It exists only because browsers do not
-  expose a tab's creation time.
-- `history`: `url → { url, title, titleCustom, domain, labels, firstSeenAt,
-  addedAt, lastSeenOpenAt, updatedCount, isOpen, gapMs }` — the curated log.
-  Duration = `lastSeenOpenAt − firstSeenAt`, recomputed live while the entry is
-  open and frozen once it closes.
-- `labelColors` / `labelNames`: the label vocabulary — palette slot and display
-  casing per label. Cosmetic, so kept out of the export to leave the NDJSON as
-  pure data.
+  lastSeenAt }`. It exists only because browsers do not expose a tab's creation time;
+  a 5-minute heartbeat keeps `lastSeenAt` fresh, and on startup records are re-matched
+  to the restored tabs by URL so ages survive restarts.
+- `history`: `url → { url, title, favIconUrl, domain, firstSeenAt, addedAt,
+  lastSeenOpenAt, isOpen, gapMs, updatedCount }`. For a closed entry `lastSeenOpenAt`
+  is the close time; duration = `lastSeenOpenAt − firstSeenAt`.
+- `settings` (minimum days, private/pinned exclusion, stop list, interface language),
+  `sidebarPrefs` (search text, view, sort) and `theme`.
 
-`storage.sync` holds a single `syncedPrefs` key: settings, stop list and label
-vocabulary. History is deliberately excluded — it does not fit the 8 KB
-per-item sync quota, and the NDJSON export exists for moving the full log.
-
-### Key behaviours worth knowing
-
-- **URL identity.** The `#fragment` is dropped by default and tracking params are
-  stripped; per-site rules (`SITE_RULES` in `tabs-logic.js`) fold the many URL
-  shapes of one YouTube video / Pinterest pin / X post into a single entry.
-- **Gap tolerance.** Reopening a tab within `gapToleranceDays` (30) continues the
-  original count with the break included and reported; beyond that it restarts.
-- **Two tabs, one URL** = one entry, defined by the oldest tab.
-- **Renames stick** — a renamed entry sets `titleCustom` so scans never overwrite it.
-
-`tabs-logic.js` is pure (no browser APIs), which is what makes all of the above
-unit-testable outside a browser.
-
-### APIs used
-
-- `tabs` — tab tracking and reopening
-- `storage` — settings, tracker state, history (local) and cross-device prefs (sync)
-- `alarms` — heartbeat (~5 min) and the daily scan
-- `runtime` — messaging between sidebar and background
+The background owns all of this; every panel (sidebar, side panel, popup) is only a view
+that asks for a snapshot and redraws on change, so closing and reopening a panel loses
+nothing. The one exception is **Undo**: the panel keeps the removed entry, because
+Chrome unloads an idle background worker after about 30 seconds.
 
 ---
 
-## 📋 TODO
+## 📋 Roadmap
 
-- **Publish to AMO (addons.mozilla.org)** so Firefox installs it permanently
-  instead of it disappearing on every restart as a temporary add-on. Unlisted
-  ("On your own") self-distribution is enough — Mozilla signs the `.xpi` without
-  listing it publicly:
-
-  ```bash
-  cd dist/firefox && web-ext sign --channel=unlisted --api-key=KEY --api-secret=SECRET
-  ```
-
-  The stable extension ID (`browser_specific_settings.gecko.id`) is already in
-  place, which is a prerequisite. Optionally add an `update_url` afterwards for
-  automatic updates instead of reinstalling by hand.
-- **Publish to the Chrome Web Store**, the Chrome analogue. Unlisted/private
-  distribution is available there too (one-time developer registration fee).
-  Loading `dist/chrome/` unpacked already persists across restarts, so this is
-  only needed for real distribution or to drop the developer-mode nag. Pin the
-  extension ID with a `"key"` manifest field if it should stay constant.
-- **Label manager** — one place to rename a label everywhere, merge two labels,
-  recolour, or delete one globally.
-- **More site rules** as they prove necessary — Twitch, Bluesky, Spotify, Amazon.
-- **Track focused time** alongside open time, to tell "open 3 weeks, never read"
-  from "read daily".
+- Publish to Firefox Add-ons, the Chrome Web Store and Opera Add-ons.
+- Check the Chrome build in Yandex Browser (the toolbar icon must open the popup).
+- More per-site URL rules as they prove necessary — Twitch, Bluesky, Spotify, Amazon.
 
 ---
 
 ## 📝 License
 
-MIT
+MIT — see [LICENSE](LICENSE).
