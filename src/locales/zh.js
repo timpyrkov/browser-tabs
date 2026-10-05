@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "打开 {0} 天以上的标签页会保存在这里，无论是否已关闭。可用 + 提前添加。",
   welcomeNew: "没有新的打开标签页。",
   noMatches: "没有匹配的结果。",
+  showMore: "显示更多（还剩 {0} 条）",
 
   // Rows
   rowSince: "自 {0}",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "进入历史前需打开的天数",
+  settingsMaxHistory: "历史记录最大条数",
   settingsExcludePrivate: "排除隐私窗口",
   settingsExcludePinned: "排除固定标签页",
   settingsExcludeList: "从不记录这些网站（每行一个）",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "备份 (NDJSON)",
   exportBtn: "导出",
   importBtn: "导入",
+  deleteAllBtn: "删除我的全部历史",
+  deleteAllPrompt: "要删除全部历史（{0} 条）吗？此操作无法撤销。",
+  deleteAllConfirm: "删除",
+  noticeLabel: "重要：",
+  noticeText: "“删除我的全部历史”会清除此扩展保存的历史。此扩展无法访问浏览器的历史记录，因此无法重建已删除的内容，这些记录将永久丢失。如果以后可能需要，请先导出备份。",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "历史：{0} / {1} · {2}",
+  capacityNearFull: "即将存满。请在设置中调高“{0}”或最大条数，或删除不再需要的记录。",
+  capacityFull: "已存满：不再添加新的标签页。请在设置中调高“{0}”或最大条数，或删除不再需要的记录。",
 
   // Import dialog
   importPrompt: "导入 {0}（{1} 条）？",
@@ -66,6 +78,9 @@ export default {
   statusExported: "已导出 {0} 条",
   statusImported: "已导入（{0}）：历史中共 {1} 条",
   statusRemovedOne: "已移除 1 条",
+  statusDeletedAll: "历史已删除（{0} 条）",
+  statusHistoryFull: "历史已满（{0} 条）。请在设置中调高最大条数或删除记录。",
+  statusImportTooLarge: "未导入：导入后历史将有 {0} 条，超过最大值 {1}。",
   statusRestored: "已恢复 {0} 条",
   statusUndo: "撤销",
   statusNoEntries: "文件中没有条目",
@@ -78,4 +93,9 @@ export default {
   unitHour: "小时",
   unitMinute: "分",
   unitLessThanMinute: "<1分",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "{0}일 이상 열린 탭은 열려 있든 닫혔든 여기에 보관됩니다. +로 더 일찍 추가할 수 있습니다.",
   welcomeNew: "새로 열린 탭이 없습니다.",
   noMatches: "검색 결과가 없습니다.",
+  showMore: "더 보기 ({0}개 남음)",
 
   // Rows
   rowSince: "{0}부터",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "기록에 들어가기까지 열려 있어야 하는 일수",
+  settingsMaxHistory: "최대 기록 항목 수",
   settingsExcludePrivate: "사생활 보호 창 제외",
   settingsExcludePinned: "고정된 탭 제외",
   settingsExcludeList: "기록하지 않을 사이트 (한 줄에 하나)",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "백업 (NDJSON)",
   exportBtn: "내보내기",
   importBtn: "가져오기",
+  deleteAllBtn: "내 기록 모두 삭제",
+  deleteAllPrompt: "기록 전체({0})를 삭제할까요? 되돌릴 수 없습니다.",
+  deleteAllConfirm: "삭제",
+  noticeLabel: "중요:",
+  noticeText: "“내 기록 모두 삭제”는 이 확장 프로그램이 저장한 기록을 지웁니다. 확장 프로그램은 브라우저 방문 기록에 접근할 수 없으므로 삭제한 내용을 다시 만들 수 없으며, 항목은 영구히 사라집니다. 나중에 필요할 수 있다면 먼저 백업을 내보내세요.",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "기록: {0} / {1} · {2}",
+  capacityNearFull: "거의 가득 찼습니다. 설정에서 “{0}” 또는 최대값을 높이거나 필요 없는 항목을 제거하세요.",
+  capacityFull: "가득 찼습니다: 새 탭이 더 이상 추가되지 않습니다. 설정에서 “{0}” 또는 최대값을 높이거나 필요 없는 항목을 제거하세요.",
 
   // Import dialog
   importPrompt: "{0}({1}개 항목)을 가져올까요?",
@@ -66,6 +78,9 @@ export default {
   statusExported: "{0}개 항목을 내보냈습니다",
   statusImported: "가져오기({0}): 기록에 {1}개 항목",
   statusRemovedOne: "1개 항목을 제거했습니다",
+  statusDeletedAll: "기록 삭제됨 ({0})",
+  statusHistoryFull: "기록이 가득 찼습니다({0}개 항목). 설정에서 최대값을 높이거나 항목을 제거하세요.",
+  statusImportTooLarge: "가져오지 않음: 기록이 {0}개 항목이 되어 최대값 {1}개를 넘습니다.",
   statusRestored: "{0}개를 복원했습니다",
   statusUndo: "실행 취소",
   statusNoEntries: "파일에 항목이 없습니다",
@@ -78,4 +93,9 @@ export default {
   unitHour: "시간",
   unitMinute: "분",
   unitLessThanMinute: "1분 미만",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

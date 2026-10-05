@@ -15,7 +15,8 @@
   "permissions": [
     "tabs",
     "storage",
-    "alarms"
+    "alarms",
+    "unlimitedStorage"
   ],
   "action": {
     "default_icon": {

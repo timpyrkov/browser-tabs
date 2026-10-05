@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "Le schede aperte da {0}+ giorni restano qui, aperte o chiuse. Aggiungine una prima con +.",
   welcomeNew: "Nessuna nuova scheda aperta.",
   noMatches: "Nessun risultato per la ricerca.",
+  showMore: "Mostra altro (ne restano {0})",
 
   // Rows
   rowSince: "dal {0}",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "Giorni di apertura prima di entrare in cronologia",
+  settingsMaxHistory: "Numero massimo di voci della cronologia",
   settingsExcludePrivate: "Escludi finestre private",
   settingsExcludePinned: "Escludi schede fissate",
   settingsExcludeList: "Non registrare mai questi siti (uno per riga)",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "Backup (NDJSON)",
   exportBtn: "Esporta",
   importBtn: "Importa",
+  deleteAllBtn: "Elimina tutta la mia cronologia",
+  deleteAllPrompt: "Eliminare tutta la cronologia ({0})? L’operazione non si può annullare.",
+  deleteAllConfirm: "Elimina",
+  noticeLabel: "IMPORTANTE:",
+  noticeText: "«Elimina tutta la mia cronologia» cancella la cronologia salvata da questa estensione. L’estensione non ha accesso alla cronologia del browser, quindi non può ricostruire ciò che elimini: le voci sono perse per sempre. Esporta prima un backup se potrebbero servirti.",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "Cronologia: {0} / {1} · {2}",
+  capacityNearFull: "Quasi piena. Aumenta «{0}» o il massimo nelle impostazioni, oppure rimuovi le voci che non ti servono più.",
+  capacityFull: "Piena: le nuove schede non vengono più aggiunte. Aumenta «{0}» o il massimo nelle impostazioni, oppure rimuovi le voci che non ti servono più.",
 
   // Import dialog
   importPrompt: "Importare {0} ({1} voci)?",
@@ -66,6 +78,9 @@ export default {
   statusExported: "Esportate {0} voci",
   statusImported: "Importato ({0}): {1} voci in cronologia",
   statusRemovedOne: "1 voce rimossa",
+  statusDeletedAll: "Cronologia eliminata ({0})",
+  statusHistoryFull: "La cronologia è piena ({0} voci). Aumenta il massimo nelle impostazioni o rimuovi delle voci.",
+  statusImportTooLarge: "Non importato: la cronologia avrebbe {0} voci, oltre il massimo di {1}.",
   statusRestored: "Ripristinate {0}",
   statusUndo: "Annulla",
   statusNoEntries: "Il file non contiene voci",
@@ -78,4 +93,9 @@ export default {
   unitHour: "h",
   unitMinute: "min",
   unitLessThanMinute: "<1min",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

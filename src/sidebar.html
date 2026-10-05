@@ -170,18 +170,20 @@
       flex-shrink: 0;
     }
 
-    /* History / New / All and the sort direction are gold buttons (the shared
-       .btn-green is the gold gradient, as on Browser Images' Download): the
-       selected one with a dark label, the other keeping its gold fill with a
-       grey label (same look as a disabled .btn, see styles.css), but still
-       clickable — hovering brings the dark label back. */
+    /* History / New / All and the sort direction act like radio buttons, so
+       none of them looks disabled: the selected one is gold (the shared
+       .btn-green gradient, as on Browser Images' Download), the others use
+       the olive-green gradient of the Export button (the shared .btn-yellow
+       look, repeated here because these buttons carry .btn-green). */
     .view-row .btn:not(.active) {
-      color: var(--btn-disabled-text);
-      box-shadow: none;
+      background: linear-gradient(180deg, var(--secondary-light), var(--secondary-2) 55%, var(--secondary-5));
+      border-color: var(--secondary-5);
+      color: #101a05;
     }
 
-    .view-row .btn:not(.active):hover {
-      color: #241a03;
+    .view-row .btn:not(.active):hover:not(:disabled),
+    .view-row .btn:not(.active):focus-visible {
+      box-shadow: 0 0 12px color-mix(in srgb, var(--accent-2) 55%, transparent);
     }
 
     .view-row .count {
@@ -236,7 +238,7 @@
     .settings-panel {
       width: 100%;
       order: 11;
-      max-height: 60vh;
+      max-height: 50vh;
       overflow-y: auto;
       box-sizing: border-box;
       margin-top: 0.5em;
@@ -304,8 +306,29 @@
       cursor: pointer;
     }
 
+    /* Destructive action sits apart from Export / Import, at the far right;
+       it wraps under them in a narrow panel. */
+    .backup-buttons #deleteAllBtn {
+      margin-left: auto;
+    }
+
+    /* Standing notice under the backup buttons, styled like Browser Images'
+       panel notice: small muted text with a red label. */
+    .panel-notice {
+      margin: 0.8em 0 0;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    .panel-notice-label {
+      color: var(--error);
+      font-weight: 700;
+    }
+
     .backup-buttons {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.5em;
     }
 
@@ -348,20 +371,6 @@
 
     .log-row:hover {
       background: color-mix(in srgb, var(--primary-1) 6%, transparent);
-    }
-
-    .log-fav {
-      width: 18px;
-      height: 18px;
-      object-fit: contain;
-      border-radius: 3px;
-      background: var(--neutral-4);
-      flex-shrink: 0;
-    }
-
-    /* No favicon: leave quiet empty space rather than a grey block. */
-    .log-fav-empty {
-      background: transparent;
     }
 
     .log-info {
@@ -451,6 +460,12 @@
       outline: none;
     }
 
+    /* Next page of rows; also loads by itself as it scrolls into view. */
+    .show-more {
+      height: 30px;
+      margin: 0.6em auto 0.2em;
+    }
+
     .welcome-text {
       color: var(--text-secondary);
       font-style: italic;
@@ -459,6 +474,29 @@
     }
 
     .welcome-text[hidden] {
+      display: none;
+    }
+
+    /* Standing capacity line at the very bottom of the panel, outside the
+       scrolling list: small and muted, like the settings notice; red from
+       HISTORY_WARN_RATIO of the maximum. */
+    .capacity-line {
+      flex-shrink: 0;
+      margin: 0.5em 0 0;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    .capacity-line.capacity-warn {
+      color: var(--error);
+    }
+
+    #capacityHint {
+      display: block;
+    }
+
+    #capacityHint:empty {
       display: none;
     }
 
@@ -521,6 +559,11 @@
       justify-content: center;
       flex-wrap: wrap;
     }
+
+    /* Same control height as the toolbar; .btn-sm alone has no height. */
+    .modal-buttons .btn {
+      height: 32px;
+    }
   </style>
 </head>
 <body>
@@ -559,6 +602,10 @@
           <label for="minDays" id="minDaysLabel">Record tabs open at least (days)</label>
           <input type="number" id="minDays" min="0" max="365" step="1" value="7" />
         </div>
+        <div class="form-group">
+          <label for="maxHistory" id="maxHistoryLabel">Maximum history entries</label>
+          <input type="number" id="maxHistory" min="10000" max="1000000" step="10000" value="100000" />
+        </div>
         <div class="form-group checkbox-group">
           <input type="checkbox" id="excludePrivate" />
           <label for="excludePrivate" id="excludePrivateLabel">Exclude private windows</label>
@@ -576,18 +623,25 @@
           <div class="backup-buttons">
             <button id="exportBtn" class="btn btn-yellow btn-sm">Export</button>
             <button id="importBtn" class="btn btn-green btn-sm">Import</button>
+            <button id="deleteAllBtn" class="btn btn-red btn-sm">Delete all my history</button>
           </div>
         </div>
+        <p class="panel-notice"><span class="panel-notice-label" id="noticeLabel">IMPORTANT:</span>
+          <span id="noticeText">“Delete all my history” erases the history stored by this extension. The extension has no access to your browser’s own history, so it cannot rebuild what you delete — the entries are gone for good. Export a backup first if you may need them later.</span></p>
       </div>
     </div>
 
     <div class="results-pane">
       <div class="results-scroll">
         <div id="list"></div>
+        <button id="showMoreBtn" class="btn btn-grey btn-sm show-more" hidden>Show more</button>
         <div class="welcome-text" id="welcomeText" hidden></div>
       </div>
       <div class="status-line" id="statusLine"></div>
     </div>
+
+    <!-- How full history is; turns red near the maximum, with what to do. -->
+    <p class="capacity-line" id="capacityLine"><span id="capacityText"></span> <span id="capacityHint"></span></p>
   </div>
 
   <input type="file" id="importFile" accept=".ndjson,.json,.txt" hidden />
@@ -599,6 +653,16 @@
         <button id="importAppendBtn" class="btn btn-green btn-sm">Append</button>
         <button id="importReplaceBtn" class="btn btn-red btn-sm">Replace</button>
         <button id="importCancelBtn" class="btn btn-grey btn-sm">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="deleteModal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <p id="deletePrompt"></p>
+      <div class="modal-buttons">
+        <button id="deleteConfirmBtn" class="btn btn-red btn-sm">Delete</button>
+        <button id="deleteCancelBtn" class="btn btn-grey btn-sm">Cancel</button>
       </div>
     </div>
   </div>

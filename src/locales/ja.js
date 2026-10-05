@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "{0}日以上開いていたタブは、開いていても閉じても、ここに保存されます。+で早めに追加できます。",
   welcomeNew: "新しく開いたタブはありません。",
   noMatches: "検索に一致する項目はありません。",
+  showMore: "さらに表示（残り {0} 件）",
 
   // Rows
   rowSince: "{0}から",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "履歴に入るまでに開いている日数",
+  settingsMaxHistory: "履歴の最大件数",
   settingsExcludePrivate: "プライベートウィンドウを除外",
   settingsExcludePinned: "ピン留めタブを除外",
   settingsExcludeList: "記録しないサイト（1 行に 1 件）",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "バックアップ (NDJSON)",
   exportBtn: "エクスポート",
   importBtn: "インポート",
+  deleteAllBtn: "履歴をすべて削除",
+  deleteAllPrompt: "履歴をすべて（{0} 件）削除しますか？元に戻せません。",
+  deleteAllConfirm: "削除",
+  noticeLabel: "重要：",
+  noticeText: "「履歴をすべて削除」は、この拡張機能が保存している履歴を消去します。この拡張機能はブラウザの履歴にアクセスできないため、削除した内容を作り直すことはできず、項目は完全に失われます。後で必要になりそうなら、先にバックアップをエクスポートしてください。",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "履歴：{0} / {1}・{2}",
+  capacityNearFull: "もうすぐ上限です。設定で「{0}」または最大件数を上げるか、不要な項目を削除してください。",
+  capacityFull: "上限に達しました：新しいタブは追加されません。設定で「{0}」または最大件数を上げるか、不要な項目を削除してください。",
 
   // Import dialog
   importPrompt: "{0}（{1} 件）をインポートしますか？",
@@ -66,6 +78,9 @@ export default {
   statusExported: "{0} 件をエクスポートしました",
   statusImported: "インポート（{0}）: 履歴に {1} 件",
   statusRemovedOne: "1 件を削除しました",
+  statusDeletedAll: "履歴を削除しました（{0} 件）",
+  statusHistoryFull: "履歴が上限に達しています（{0} 件）。設定で最大件数を上げるか、項目を削除してください。",
+  statusImportTooLarge: "インポートしませんでした：履歴が {0} 件になり、上限の {1} 件を超えます。",
   statusRestored: "{0} 件を復元しました",
   statusUndo: "元に戻す",
   statusNoEntries: "ファイルに項目がありません",
@@ -78,4 +93,9 @@ export default {
   unitHour: "時間",
   unitMinute: "分",
   unitLessThanMinute: "1分未満",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

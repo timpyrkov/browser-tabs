@@ -27,10 +27,21 @@ const DEFAULT_SETTINGS = {
     'web.telegram.org',
   ],
 
+  // Maximum number of history entries. When it is reached, new tabs are
+  // simply not added (nothing already in history is ever deleted to make
+  // room); the panel shows how full it is. See MAX_HISTORY_RANGE.
+  maxHistory: 100000,
+
   // Interface language. Empty on first run so the sidebar can adopt the
   // browser's own UI language; set explicitly once the user picks one.
   uiLang: '',
 };
+
+// Allowed range for settings.maxHistory.
+const MAX_HISTORY_RANGE = { min: 10000, max: 1000000 };
+
+// Share of maxHistory at which the panel's capacity line turns red.
+const HISTORY_WARN_RATIO = 0.9;
 
 // Fixed behaviour that used to be user settings. Kept as named constants so
 // the logic stays readable and testable; see tabs-logic.js for what each does.
@@ -39,13 +50,14 @@ const FIXED_SETTINGS = {
   maxTitleLength: 100,
 };
 
-// Time of day (24h "HH:MM") for the daily scan that records long-open tabs
-// while they are still open (so an export always has them).
-const DAILY_SCAN_TIME = '05:00';
-
-// Alarm names used by background.js.
-const ALARM_HEARTBEAT = 'heartbeat';
-const ALARM_DAILY_SCAN = 'dailyScan';
-
 // How often the heartbeat refreshes lastSeenAt on open tabs (minutes).
 const HEARTBEAT_MINUTES = 5;
+
+// How often the scan runs that records long-open tabs while they are still
+// open (minutes). It piggybacks on the heartbeat: no alarm of its own.
+const SCAN_INTERVAL_MINUTES = 60;
+
+// Alarm names used by background.js. 'dailyScan' belonged to an earlier
+// version (a 05:00 daily scan) and is cleared on existing installs.
+const ALARM_HEARTBEAT = 'heartbeat';
+const LEGACY_ALARMS = ['dailyScan'];

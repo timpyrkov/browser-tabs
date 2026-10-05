@@ -1,6 +1,6 @@
 // tabs-logic.js
 // Pure helpers shared by background.js and sidebar.js: age/duration math,
-// recording long-open tabs (on close and in the daily scan) with dedup,
+// recording long-open tabs (on close and in the hourly scan) with dedup,
 // import merge rules, and NDJSON serialization. No browser APIs are used here, so everything is unit-testable
 // and safe to load in any context (page, event page, service worker).
 
@@ -280,7 +280,7 @@
    * accumulated break is kept in `gapMs` for the export.
    *
    * Shared by every reopen path — live tab event, startup reconcile, and the
-   * daily scan — so they cannot drift apart.
+   * hourly scan — so they cannot drift apart.
    */
   function resumeStint(entry, now) {
     entry.gapMs = (entry.gapMs || 0) + Math.max(0, now - (entry.lastSeenOpenAt || now));
@@ -337,7 +337,6 @@
     return {
       url: rec.url,
       title: truncateTitle(rec.title, settings.maxTitleLength),
-      favIconUrl: rec.favIconUrl || '',
       domain: domainOf(rec.url),
       firstSeenAt: rec.firstSeenAt,
       addedAt: seenAt,
@@ -353,31 +352,44 @@
    * elsewhere, or missing after a browser restart).
    *
    * This is the path that matters most: without it a tab that crossed
-   * `minDays` after the last daily scan and was closed before the next one
-   * would never reach history — exactly the accidental close this extension
-   * exists for. URLs already in history are left to the caller, which stamps
-   * them closed. Mutates `history`; returns whether an entry was added.
+   * `minDays` after the last scan and was closed before the next one would
+   * never reach history — exactly the accidental close this extension exists
+   * for. URLs already in history are left to the caller, which stamps them
+   * closed. A full history (see isHistoryFull) takes nothing new. Mutates
+   * `history`; returns whether an entry was added.
    */
   function recordLongOpen(history, rec, endAt, settings, isOpen) {
     if (!rec || !isTrackableUrl(rec.url) || history[rec.url]) return false;
     if (isExcluded(rec.url, settings.excludeList)) return false;
     if (endAt - rec.firstSeenAt < (settings.minDays || 0) * DAY_MS) return false;
+    if (isHistoryFull(history, settings)) return false;
     history[rec.url] = newEntry(rec, endAt, settings, isOpen);
     return true;
   }
 
   /**
-   * The daily promotion scan, as a pure function.
+   * At the maximum (settings.maxHistory), new URLs are simply not added.
+   * Nothing already in history is ever deleted to make room — losing an old
+   * entry silently would defeat the purpose — so the panel shows how full it
+   * is and suggests what to do instead.
+   */
+  function isHistoryFull(history, settings) {
+    const max = settings && settings.maxHistory;
+    return Number.isFinite(max) && max > 0 && Object.keys(history).length >= max;
+  }
+
+  /**
+   * The periodic promotion scan (hourly), as a pure function.
    *
    * Promotes open tabs aged >= minDays into history while they are still
    * open, deduplicated by URL: a URL already in history is updated in place,
    * never added twice. Open history entries whose URL is no longer among the
-   * open tabs are stamped closed. Returns a new history object plus
-   * added/updated/closed counts.
+   * open tabs are stamped closed. New URLs stop being added once history is
+   * full. Returns a new history object plus added/updated/closed counts.
    *
    * @param {Object} history  url -> HistoryEntry
-   * @param {Array}  openTabs tracker records [{url, title, favIconUrl, firstSeenAt, lastSeenAt}]
-   * @param {Object} settings needs minDays, maxTitleLength, excludeList
+   * @param {Array}  openTabs tracker records [{url, title, firstSeenAt, lastSeenAt}]
+   * @param {Object} settings needs minDays, maxTitleLength, excludeList, maxHistory
    * @param {number} now
    */
   function promoteOpenTabs(history, openTabs, settings, now) {
@@ -388,6 +400,8 @@
     let added = 0;
     let updated = 0;
     let closed = 0;
+    const max = Number.isFinite(settings.maxHistory) && settings.maxHistory > 0 ? settings.maxHistory : Infinity;
+    let count = Object.keys(result).length;
 
     const oldestByUrl = oldestRecordByUrl(openTabs);
     const minAgeMs = (settings.minDays || 0) * DAY_MS;
@@ -397,7 +411,9 @@
       if (tabAgeMs(rec, now) < minAgeMs) continue;
       const existing = result[url];
       if (!existing) {
+        if (count >= max) continue;
         result[url] = newEntry(rec, now, settings, true);
+        count++;
         added++;
       } else {
         // Reopened after being closed: continue the same count (see resumeStint).
@@ -405,7 +421,6 @@
           resumeStint(existing, now);
         }
         existing.title = truncateTitle(rec.title, settings.maxTitleLength) || existing.title;
-        existing.favIconUrl = rec.favIconUrl || existing.favIconUrl || '';
         existing.lastSeenOpenAt = now;
         existing.updatedCount = (existing.updatedCount || 0) + 1;
         existing.isOpen = true;
@@ -423,6 +438,30 @@
     }
 
     return { history: result, added, updated, closed };
+  }
+
+  // UTF-8 byte length without allocating an encoded copy.
+  function utf8Length(text) {
+    let bytes = 0;
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code < 0x80) bytes += 1;
+      else if (code < 0x800) bytes += 2;
+      else if (code >= 0xd800 && code <= 0xdbff) { bytes += 4; i++; }   // surrogate pair
+      else bytes += 3;
+    }
+    return bytes;
+  }
+
+  /**
+   * Approximate stored size of the history, in bytes: each entry as JSON
+   * plus its URL key, which is how storage.local serializes the url -> entry
+   * map. Shown in the panel next to the entry count.
+   */
+  function historyBytes(entries) {
+    let bytes = 2;
+    for (const entry of entries) bytes += utf8Length(JSON.stringify(entry)) + utf8Length(entry.url || '') + 4;
+    return bytes;
   }
 
   // Several tabs may show the same URL; the oldest one defines its age.
@@ -444,7 +483,6 @@
     return {
       url: raw.url,
       title: typeof raw.title === 'string' ? raw.title : '',
-      favIconUrl: typeof raw.favIconUrl === 'string' ? raw.favIconUrl : '',
       domain: typeof raw.domain === 'string' && raw.domain ? raw.domain : domainOf(raw.url),
       firstSeenAt,
       addedAt: num(raw.addedAt, firstSeenAt),
@@ -483,7 +521,6 @@
         current.lastSeenOpenAt = Math.max(current.lastSeenOpenAt, entry.lastSeenOpenAt);
         current.updatedCount = Math.max(current.updatedCount || 0, entry.updatedCount || 0);
         if (!current.title && entry.title) current.title = entry.title;
-        if (!current.favIconUrl && entry.favIconUrl) current.favIconUrl = entry.favIconUrl;
       }
     }
     return result;
@@ -575,6 +612,8 @@
     newEntry,
     recordLongOpen,
     promoteOpenTabs,
+    isHistoryFull,
+    historyBytes,
     oldestRecordByUrl,
     normalizeEntry,
     mergeImport,

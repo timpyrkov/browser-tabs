@@ -28,7 +28,8 @@ function loadLogic() {
 // panel API), 'yandex' (Chrome API surface, YaBrowser user agent).
 // `local` is the storage.local backing object; `tabs` what tabs.query reports.
 function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
-  const listeners = { message: null, clicked: [], startup: [], removed: [], updated: [] };
+  const listeners = { message: null, clicked: [], startup: [], removed: [], updated: [], alarm: [] };
+  const alarmsCleared = [];
   const panel = { behavior: [], popups: [], toggled: 0 };
   const copy = (v) => JSON.parse(JSON.stringify(v));
   const area = (backing) => ({
@@ -51,7 +52,8 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
     storage: { local: area(local), sync: area({}), onChanged: event() },
     tabs: { query: () => Promise.resolve(copy(tabs)), onCreated: event(),
       onUpdated: event(listeners.updated), onRemoved: event(listeners.removed) },
-    alarms: { get: () => Promise.resolve(undefined), create() {}, clear: () => Promise.resolve(true), onAlarm: event() },
+    alarms: { get: () => Promise.resolve(undefined), create() {},
+      clear: (name) => { alarmsCleared.push(name); return Promise.resolve(true); }, onAlarm: event(listeners.alarm) },
     action: { onClicked: event(listeners.clicked), setPopup: (p) => { panel.popups.push(p); return Promise.resolve(); } },
   };
   if (kind === 'chrome' || kind === 'chrome-fails' || kind === 'yandex') {
@@ -85,7 +87,8 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   const settle = async () => { for (let i = 0; i < 10; i++) await tick(); };
   const closeTab = async (tabId) => { listeners.removed.forEach((f) => f(tabId)); await settle(); };
   const navigate = async (tab) => { listeners.updated.forEach((f) => f(tab.id, { url: tab.url }, tab)); await settle(); };
-  return { s, panel, listeners, local, ask, closeTab, navigate };
+  const heartbeat = async () => { listeners.alarm.forEach((f) => f({ name: 'heartbeat' })); await settle(); };
+  return { s, panel, listeners, local, ask, closeTab, navigate, heartbeat, alarmsCleared };
 }
 
 (async () => {
@@ -165,6 +168,19 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   eq('search matches title or URL, not other fields',
     [L.matchesQuery({ title: 'Recipe', url: 'https://x/' }, 'reci'), L.matchesQuery({ title: 'x', url: 'https://x/', labels: ['art'] }, 'art')],
     [true, false]);
+
+  section('logic: maximum history size');
+  const capped = { ...settings, maxHistory: 2 };
+  history = { 'https://a.example/': {}, 'https://b.example/': {} };
+  eq('full history takes no new entry on close',
+    L.recordLongOpen(history, { url: 'https://c.example/', firstSeenAt: 0 }, now, capped, false), false);
+  const scanned = L.promoteOpenTabs({ 'https://a.example/': { url: 'https://a.example/', title: 'a', isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 1 } },
+    [{ url: 'https://a.example/', title: 'a2', firstSeenAt: 0 }, { url: 'https://b.example/', title: 'b', firstSeenAt: 0 },
+     { url: 'https://c.example/', title: 'c', firstSeenAt: 0 }], capped, now);
+  eq('scan stops adding at the maximum but still updates existing entries',
+    [Object.keys(scanned.history).length, scanned.added, scanned.updated, scanned.history['https://a.example/'].title], [2, 1, 1, 'a2']);
+  eq('size estimate counts UTF-8 bytes (Cyrillic = 2 bytes per letter)',
+    L.historyBytes([{ url: 'https://x/', title: 'Ёж' }]) - L.historyBytes([{ url: 'https://x/', title: 'ab' }]), 2);
 
   section('toolbar icon: sidebar primary, popup fallback');
   let env = loadBackground({ kind: 'firefox' });
@@ -260,6 +276,92 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   state = await env.ask({ action: 'getState' });
   eq('trash: out of history, still-open tab counts from zero again',
     [state.history.length, Date.now() - state.openTabs[0].firstSeenAt < 60000], [0, true]);
+
+  section('background: delete all history');
+  store = seeded([tracker('https://example.com/a', 9), tracker('https://example.com/b', 12)]);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [] });   // both closed -> recorded at startup
+  eq('two closed long-open tabs in history', (await env.ask({ action: 'getState' })).history.length, 2);
+  eq('delete all reports what it removed', await env.ask({ action: 'clearHistory' }), { removed: 2 });
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [] });
+  eq('and nothing comes back after a worker restart', (await env.ask({ action: 'getState' })).history, []);
+
+  section('background: lowering the threshold applies at once');
+  store = seeded([tracker('https://example.com/four-days', 4)]);
+  const fourDays = { id: 1, url: 'https://example.com/four-days', title: 'x', windowId: 1 };
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [fourDays] });
+  eq('a 4-day tab is not in history at 7 days', (await env.ask({ action: 'getState' })).history, []);
+  await env.ask({ action: 'saveSettings', settings: { minDays: 3 } });
+  state = await env.ask({ action: 'getState' });
+  eq('after lowering to 3 days it is in history, still open',
+    state.history.map((e) => [e.url, e.isOpen]), [['https://example.com/four-days', true]]);
+  await env.ask({ action: 'saveSettings', settings: { minDays: 10 } });
+  eq('raising to 10 days removes nothing', (await env.ask({ action: 'getState' })).history.length, 1);
+
+  section('background: the title is refreshed on close and on reopen');
+  store = seeded([{ ...tracker('https://example.com/t', 9), title: 'New title' }]);
+  store.history = { 'https://example.com/t': { url: 'https://example.com/t', title: 'Old title', domain: 'example.com',
+    firstSeenAt: realNow - 9 * DAY, addedAt: realNow, lastSeenOpenAt: realNow, isOpen: true, gapMs: 0 } };
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [{ id: 1, url: 'https://example.com/t', title: 'New title', windowId: 1 }] });
+  await env.ask({ action: 'getState' });
+  await env.closeTab(1);
+  state = await env.ask({ action: 'getState' });
+  eq('closing stores the latest title', [state.history[0].title, state.history[0].isOpen], ['New title', false]);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [{ id: 5, url: 'https://example.com/t', title: 'Newest title', windowId: 1 }] });
+  state = await env.ask({ action: 'getState' });
+  eq('reopening from history stores the reopened tab’s title', [state.history[0].title, state.history[0].isOpen], ['Newest title', true]);
+
+  section('background: site icons are not kept');
+  store = seeded([{ ...tracker('https://example.com/i', 1), favIconUrl: 'data:image/png;base64,' + 'A'.repeat(4000) }]);
+  store.history = { 'https://example.com/h': { url: 'https://example.com/h', title: 'h', favIconUrl: 'https://example.com/favicon.ico',
+    domain: 'example.com', firstSeenAt: 1, addedAt: 1, lastSeenOpenAt: 1, isOpen: false, gapMs: 0 } };
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [{ id: 1, url: 'https://example.com/i', title: 'i', windowId: 1, favIconUrl: 'x' }] });
+  await env.ask({ action: 'getState' });
+  eq('icons from an older version are removed from storage',
+    [JSON.stringify(store.history).includes('favIconUrl'), JSON.stringify(store.openTabs).includes('favIconUrl')], [false, false]);
+
+  section('background: hourly scan rides on the heartbeat');
+  store = seeded([tracker('https://example.com/eight', 8)]);
+  store.lastScanAt = realNow - 10 * 60 * 1000;
+  const eight = { id: 1, url: 'https://example.com/eight', title: 'x', windowId: 1 };
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [eight] });
+  await env.ask({ action: 'getState' });
+  eq('the old daily-scan alarm is cleared', env.alarmsCleared.includes('dailyScan'), true);
+  await env.heartbeat();
+  eq('10 min after the last scan: heartbeat does not scan', (await env.ask({ action: 'getState' })).history, []);
+  store.lastScanAt = realNow - 61 * 60 * 1000;
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [eight] });
+  await env.ask({ action: 'getState' });
+  await env.heartbeat();
+  eq('an hour after the last scan: the long-open tab is recorded while open',
+    (await env.ask({ action: 'getState' })).history.map((e) => [e.url, e.isOpen]), [['https://example.com/eight', true]]);
+
+  section('background: maximum history size');
+  const fullStore = (n) => {
+    const st = seeded([tracker('https://example.com/new-one', 1)]);
+    st.settings.maxHistory = 10000;
+    for (let i = 0; i < n; i++) {
+      const url = `https://example.com/${i}`;
+      st.history[url] = { url, title: String(i), domain: 'example.com', firstSeenAt: 1, addedAt: 1, lastSeenOpenAt: 1, isOpen: false, gapMs: 0 };
+    }
+    return st;
+  };
+  store = fullStore(10000);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [{ id: 1, url: 'https://example.com/new-one', title: 'n', windowId: 1 }] });
+  eq('+ on a full history is refused, not silently dropped',
+    await env.ask({ action: 'addEntry', url: 'https://example.com/new-one' }), { full: true, max: 10000 });
+  store = fullStore(9999);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [] });
+  const imported = await env.ask({ action: 'importHistory', mode: 'append',
+    entries: [{ url: 'https://example.com/x1', firstSeenAt: 1 }, { url: 'https://example.com/x2', firstSeenAt: 1 }] });
+  eq('an import that would go over the maximum is refused as a whole',
+    [imported, (await env.ask({ action: 'getState' })).history.length], [{ tooLarge: true, total: 10001, max: 10000 }, 9999]);
+  env = loadBackground({ kind: 'chrome', local: {} });
+  await env.ask({ action: 'saveSettings', settings: { maxHistory: 5 } });
+  const low = (await env.ask({ action: 'getSettings' })).settings.maxHistory;
+  await env.ask({ action: 'saveSettings', settings: { maxHistory: 5e9 } });
+  const high = (await env.ask({ action: 'getSettings' })).settings.maxHistory;
+  eq('the maximum is kept within 10,000 … 1,000,000 (default 100,000)',
+    [low, high, (await loadBackground({ kind: 'chrome', local: {} }).ask({ action: 'getSettings' })).settings.maxHistory], [10000, 1000000, 100000]);
 
   section('background: settings from older versions are dropped');
   env = loadBackground({ kind: 'chrome', local: { settings: { minDays: 3, syncEnabled: true, scanTime: '09:00' } } });

@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "Вкладки, открытые {0}+ дн., хранятся здесь — открытые и закрытые. Добавить раньше можно кнопкой +.",
   welcomeNew: "Нет новых открытых вкладок.",
   noMatches: "Ничего не найдено.",
+  showMore: "Показать ещё (осталось {0})",
 
   // Rows
   rowSince: "с {0}",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "Дней открыта, прежде чем попасть в историю",
+  settingsMaxHistory: "Максимум записей в истории",
   settingsExcludePrivate: "Исключить приватные окна",
   settingsExcludePinned: "Исключить закреплённые вкладки",
   settingsExcludeList: "Никогда не отслеживать эти сайты (по одному в строке)",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "Резервная копия (NDJSON)",
   exportBtn: "Экспорт",
   importBtn: "Импорт",
+  deleteAllBtn: "Удалить всю мою историю",
+  deleteAllPrompt: "Удалить всю историю ({0})? Это действие нельзя отменить.",
+  deleteAllConfirm: "Удалить",
+  noticeLabel: "ВАЖНО:",
+  noticeText: "«Удалить всю мою историю» стирает историю, которую хранит это расширение. У расширения нет доступа к истории браузера, поэтому восстановить удалённое оно не сможет — записи пропадут навсегда. Если они могут понадобиться, сначала сделайте резервную копию через «Экспорт».",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "История: {0} / {1} · {2}",
+  capacityNearFull: "Почти заполнена. Увеличьте «{0}» или максимум в настройках либо удалите ненужные записи.",
+  capacityFull: "Заполнена: новые вкладки больше не добавляются. Увеличьте «{0}» или максимум в настройках либо удалите ненужные записи.",
 
   // Import dialog
   importPrompt: "Импортировать {0} ({1} записей)?",
@@ -66,6 +78,9 @@ export default {
   statusExported: "Экспортировано записей: {0}",
   statusImported: "Импорт ({0}): записей в истории — {1}",
   statusRemovedOne: "Удалена 1 запись",
+  statusDeletedAll: "История удалена ({0})",
+  statusHistoryFull: "История заполнена ({0} записей). Увеличьте максимум в настройках или удалите записи.",
+  statusImportTooLarge: "Не импортировано: в истории было бы {0} записей — больше максимума ({1}).",
   statusRestored: "Восстановлено: {0}",
   statusUndo: "Отменить",
   statusNoEntries: "В файле нет записей",
@@ -78,4 +93,9 @@ export default {
   unitHour: "ч",
   unitMinute: "м",
   unitLessThanMinute: "<1м",
+
+  // Size units
+  unitByte: "Б",
+  unitKB: "КБ",
+  unitMB: "МБ",
 };

@@ -69,7 +69,7 @@ extension sidebar)
 - **Sort** by title, URL, open time, duration or close time, with ↑ / ↓ for ascending /
   descending; each filter remembers its own order.
 - **Recorded the moment it goes away** — closing a long-open tab, navigating it to
-  another page, or losing it in a browser crash records it immediately; a daily scan
+  another page, or losing it in a browser crash records it immediately; an hourly scan
   also records long-open tabs while they are still open, so a backup always has them.
 - **Once in history, always in history** — reopening a URL from history continues its
   count, however long it was closed; only the trash button restarts it.
@@ -81,7 +81,8 @@ extension sidebar)
   default) are never tracked. Private windows are excluded by default; pinned tabs can be.
 - **Backup** — export the whole history as NDJSON (one JSON object per line;
   `pd.read_json(path, lines=True)` in Python) and import it back (**Append** or
-  **Replace**).
+  **Replace**). **Delete all my history** (in settings, after a confirmation) wipes the
+  extension's own history for good; it never touches the browser's history.
 - **Sidebar in Firefox and Opera, side panel in Chrome.** Chrome and Opera builds also
   carry a toolbar popup with the same UI as a fallback for browsers without an extension
   sidebar, e.g. **Yandex Browser** installing from the Chrome or Opera store.
@@ -123,7 +124,7 @@ After changing anything in `src/`, rebuild and press **Reload** on the extension
 
 ```
 src/
-  background.js        tracker, recording on close, daily scan, message API
+  background.js        tracker, recording on close, hourly scan, message API
   tabs-logic.js        pure helpers: durations, recording/dedup, URL rules, NDJSON
   defaults.js          default settings + fixed behaviour constants
   sidebar.html/.js     the UI (also used as the Chrome/Opera toolbar popup)
@@ -140,15 +141,33 @@ test/run.cjs           regression tests (node vm, no browser)
 
 Everything is kept in `storage.local`, on this device only:
 
-- `openTabs` (tracker): `tabId → { url, title, favIconUrl, windowId, firstSeenAt,
+- `openTabs` (tracker): `tabId → { url, title, windowId, firstSeenAt,
   lastSeenAt }`. It exists only because browsers do not expose a tab's creation time;
   a 5-minute heartbeat keeps `lastSeenAt` fresh, and on startup records are re-matched
   to the restored tabs by URL so ages survive restarts.
-- `history`: `url → { url, title, favIconUrl, domain, firstSeenAt, addedAt,
+- `history`: `url → { url, title, domain, firstSeenAt, addedAt,
   lastSeenOpenAt, isOpen, gapMs, updatedCount }`. For a closed entry `lastSeenOpenAt`
   is the close time; duration = `lastSeenOpenAt − firstSeenAt`.
 - `settings` (minimum days, private/pinned exclusion, stop list, interface language),
   `sidebarPrefs` (search text, view, sort) and `theme`.
+
+Site icons are deliberately not stored (or shown): some arrive as multi-KB embedded
+images. Without them a history entry takes about 300–700 bytes (≈ 400 for a typical
+article), so the default maximum of **100,000 entries** is about 40 MB. Chrome and Opera
+cap extension storage at 10 MB unless the extension has `unlimitedStorage`, so their
+manifests request it (Chrome shows no install warning for it); Firefox's limits are far
+higher and it would show a warning, so its manifest does not.
+
+The maximum (`settings.maxHistory`, 10,000 … 1,000,000) is a hard stop: at the limit new
+tabs are simply not added, and nothing already in history is deleted to make room. The
+panel's bottom line shows `History: 214 / 100,000 · 85 KB`, turning red at 90 % with a
+hint to raise the day threshold or the maximum, or to remove entries. An import that
+would go over the maximum is refused as a whole.
+
+The list is drawn 200 rows at a time: the whole history is filtered and sorted (about
+80 ms for 100,000 entries), but only the first page becomes DOM rows, and the next page
+loads as you scroll near the end (or with **Show more**). Search always covers
+everything.
 
 The background owns all of this; every panel (sidebar, side panel, popup) is only a view
 that asks for a snapshot and redraws on change, so closing and reopening a panel loses

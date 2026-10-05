@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "Tabs open for {0}+ days are kept here, open or closed. Add any tab sooner with +.",
   welcomeNew: "No new open tabs.",
   noMatches: "Nothing matches the search.",
+  showMore: "Show more ({0} left)",
 
   // Rows
   rowSince: "since {0}",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "Days open before a tab enters history",
+  settingsMaxHistory: "Maximum history entries",
   settingsExcludePrivate: "Exclude private windows",
   settingsExcludePinned: "Exclude pinned tabs",
   settingsExcludeList: "Never track these sites (one per line)",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "Backup (NDJSON)",
   exportBtn: "Export",
   importBtn: "Import",
+  deleteAllBtn: "Delete all my history",
+  deleteAllPrompt: "Delete everything in history ({0})? This cannot be undone.",
+  deleteAllConfirm: "Delete",
+  noticeLabel: "IMPORTANT:",
+  noticeText: "“Delete all my history” erases the history stored by this extension. The extension has no access to your browser’s own history, so it cannot rebuild what you delete — the entries are gone for good. Export a backup first if you may need them later.",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "History: {0} / {1} · {2}",
+  capacityNearFull: "Almost full. Raise “{0}” or the maximum in settings, or remove entries you no longer need.",
+  capacityFull: "Full: new tabs are no longer added. Raise “{0}” or the maximum in settings, or remove entries you no longer need.",
 
   // Import dialog
   importPrompt: "Import {0} ({1} entries)?",
@@ -66,6 +78,9 @@ export default {
   statusExported: "Exported {0} entries",
   statusImported: "Imported ({0}): {1} entries in history",
   statusRemovedOne: "Removed 1 entry",
+  statusDeletedAll: "History deleted ({0})",
+  statusHistoryFull: "History is full ({0} entries). Raise the maximum in settings or remove entries.",
+  statusImportTooLarge: "Not imported: history would have {0} entries, more than the maximum of {1}.",
   statusRestored: "Restored {0}",
   statusUndo: "Undo",
   statusNoEntries: "File contains no entries",
@@ -78,4 +93,9 @@ export default {
   unitHour: "h",
   unitMinute: "m",
   unitLessThanMinute: "<1m",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

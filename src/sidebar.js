@@ -29,6 +29,12 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   };
   // Views saved by the previous version, which had Open / Closed lists.
   const LEGACY_VIEWS = { open: 'new', closed: 'history' };
+  // Rows are drawn a page at a time: the whole list is filtered and sorted
+  // (cheap), but only the first PAGE_SIZE rows become DOM elements, and more
+  // pages follow as you scroll to the end. Redrawing tens of thousands of rows
+  // on every change and every minute would make a large history sluggish.
+  const PAGE_SIZE = 200;
+
   const SORT_LABEL_KEYS = {
     title: 'sortTitle', url: 'sortUrl', opened: 'sortOpened', duration: 'sortDuration', closed: 'sortClosed',
   };
@@ -59,6 +65,17 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     return date.toLocaleString(state.settings.uiLang || undefined, options);
   }
 
+  function fmtNum(n) {
+    return Number(n).toLocaleString(state.settings.uiLang || undefined);
+  }
+
+  function fmtBytes(bytes) {
+    const lang = state.settings.uiLang || undefined;
+    if (bytes < 1024) return `${bytes} ${t('unitByte')}`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024).toLocaleString(lang)} ${t('unitKB')}`;
+    return `${(bytes / (1024 * 1024)).toLocaleString(lang, { maximumFractionDigits: 1 })} ${t('unitMB')}`;
+  }
+
   function fmtDateFull(ts) {
     return new Date(ts).toLocaleString(state.settings.uiLang || undefined, { dateStyle: 'medium', timeStyle: 'short' });
   }
@@ -77,6 +94,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       sort: Object.fromEntries(VIEWS.map((view) => [view, { ...DEFAULT_SORT[view] }])),
     },
     pendingImport: null,  // { fileName, entries }
+    shownLimit: PAGE_SIZE,  // rows drawn so far (see renderList)
   };
 
   const els = {};
@@ -87,7 +105,9 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
    'excludePinned', 'excludePinnedLabel', 'excludeList', 'excludeListLabel', 'backupLabel',
    'exportBtn', 'importBtn', 'importFile', 'importModal', 'importPrompt',
    'importAppendBtn', 'importReplaceBtn', 'importCancelBtn',
-   'list', 'welcomeText', 'statusLine',
+   'maxHistory', 'maxHistoryLabel', 'capacityLine', 'capacityText', 'capacityHint',
+   'deleteAllBtn', 'deleteModal', 'deletePrompt', 'deleteConfirmBtn', 'deleteCancelBtn', 'noticeLabel', 'noticeText',
+   'list', 'showMoreBtn', 'welcomeText', 'statusLine',
   ].forEach((id) => { els[id] = document.getElementById(id); });
 
   function sendMessage(payload) {
@@ -170,6 +190,8 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     }
     state.history = response.history || [];
     state.openTabs = response.openTabs || [];
+    // Measured here, once per data change, rather than on every render tick.
+    state.historyBytes = Logic.historyBytes(state.history);
   }
 
   async function fetchSettings() {
@@ -199,7 +221,6 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
         title: (rec && rec.title) || entry.title || '',
         url: entry.url,
         domain: entry.domain || Logic.domainOf(entry.url),
-        favIconUrl: (rec && rec.favIconUrl) || entry.favIconUrl || '',
         firstSeenAt: entry.firstSeenAt,
         lastSeenOpenAt: entry.isOpen ? now : entry.lastSeenOpenAt,
         isOpen: Boolean(entry.isOpen),
@@ -214,7 +235,6 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
         title: rec.title || '',
         url: rec.url,
         domain: Logic.domainOf(rec.url),
-        favIconUrl: rec.favIconUrl || '',
         firstSeenAt: rec.firstSeenAt,
         lastSeenOpenAt: now,
         isOpen: true,
@@ -231,27 +251,15 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     return Logic.sortEntries(shown, key, dir, now);
   }
 
-  // A src-less <img> draws a broken-image frame, so rows without a favicon get
-  // an empty spacer of the same size instead — keeping titles aligned.
-  function makeFaviconPlaceholder() {
-    const span = document.createElement('span');
-    span.className = 'log-fav log-fav-empty';
-    return span;
-  }
-
-  function makeFavicon(favIconUrl) {
-    if (!favIconUrl || !(favIconUrl.startsWith('http') || favIconUrl.startsWith('data:'))) {
-      return makeFaviconPlaceholder();
-    }
-    const img = document.createElement('img');
-    img.className = 'log-fav';
-    img.src = favIconUrl;
-    img.addEventListener('error', () => img.replaceWith(makeFaviconPlaceholder()));
-    return img;
+  // A different filter, search or order starts again from the first page.
+  function resetPaging() {
+    state.shownLimit = PAGE_SIZE;
+    els.list.parentElement.scrollTop = 0;
   }
 
   function applyQuery(text) {
     state.prefs.query = text;
+    resetPaging();
     els.searchInput.value = text;
     savePrefs();
     render();
@@ -332,6 +340,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     const response = await sendMessage({ action: 'addEntry', url: item.url });
     await refresh();
     if (response && response.error) showStatus(response.error, true);
+    else if (response && response.full) showStatus(t('statusHistoryFull', fmtNum(response.max)), true, 8000);
     else showStatus(t('statusAdded'));
   }
 
@@ -359,7 +368,6 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     const row = document.createElement('div');
     row.className = 'log-row';
     row.title = t(item.isOpen ? 'rowGoToTab' : 'rowReopen');
-    row.appendChild(makeFavicon(item.favIconUrl));
     row.appendChild(makeInfoBlock(item));
     row.appendChild(makeStatus(item, now));
     row.appendChild(item.kind === 'history'
@@ -373,15 +381,32 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   // Render
   // ---------------------------------------------------------------------------
 
+  // Draws the first state.shownLimit rows of the (already filtered and
+  // sorted) list in one DOM update, and offers the rest a page at a time.
+  function renderList(shown, now) {
+    const fragment = document.createDocumentFragment();
+    shown.slice(0, state.shownLimit).forEach((item) => fragment.appendChild(renderRow(item, now)));
+    els.list.replaceChildren(fragment);
+    const remaining = shown.length - state.shownLimit;
+    els.showMoreBtn.hidden = remaining <= 0;
+    if (remaining > 0) els.showMoreBtn.textContent = t('showMore', fmtNum(remaining));
+  }
+
+  function showMore() {
+    if (els.showMoreBtn.hidden) return;
+    state.shownLimit += PAGE_SIZE;
+    render();
+  }
+
   function render() {
     const now = Date.now();
     const view = state.prefs.view;
     const items = buildItems(now);
     const historyCount = items.filter((item) => item.kind === 'history').length;
 
-    els.countAll.textContent = items.length;
-    els.countNew.textContent = items.length - historyCount;
-    els.countHistory.textContent = historyCount;
+    els.countAll.textContent = fmtNum(items.length);
+    els.countNew.textContent = fmtNum(items.length - historyCount);
+    els.countHistory.textContent = fmtNum(historyCount);
     els.viewAllBtn.classList.toggle('active', view === 'all');
     els.viewNewBtn.classList.toggle('active', view === 'new');
     els.viewHistoryBtn.classList.toggle('active', view === 'history');
@@ -391,10 +416,10 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     els.sortAscBtn.classList.toggle('active', sort.dir === 'asc');
     els.sortDescBtn.classList.toggle('active', sort.dir === 'desc');
     els.searchClear.hidden = !state.prefs.query;
+    els.deleteAllBtn.disabled = historyCount === 0;
 
-    els.list.innerHTML = '';
     const shown = visibleItems(items, now);
-    shown.forEach((item) => els.list.appendChild(renderRow(item, now)));
+    renderList(shown, now);
 
     let welcome = '';
     if (!shown.length) {
@@ -404,6 +429,19 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     }
     els.welcomeText.textContent = welcome;
     els.welcomeText.hidden = !welcome;
+    renderCapacity(historyCount);
+  }
+
+  // "History: 214 / 100,000 · 43 KB" at the very bottom; red from
+  // HISTORY_WARN_RATIO of the maximum, with what to do about it. At the
+  // maximum new tabs are simply not added, so the line says so.
+  function renderCapacity(count) {
+    const max = state.settings.maxHistory || DEFAULT_SETTINGS.maxHistory;
+    els.capacityText.textContent = t('capacityLine', fmtNum(count), fmtNum(max), fmtBytes(state.historyBytes || 0));
+    const warn = count >= max * HISTORY_WARN_RATIO;
+    els.capacityLine.classList.toggle('capacity-warn', warn);
+    els.capacityHint.textContent = !warn ? ''
+      : t(count >= max ? 'capacityFull' : 'capacityNearFull', t('settingsMinDays'));
   }
 
   async function refresh() {
@@ -468,6 +506,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     sortOptionsFor = null;   // relabel the sort options in the new language
 
     els.minDaysLabel.textContent = t('settingsMinDays');
+    els.maxHistoryLabel.textContent = t('settingsMaxHistory');
     els.excludePrivateLabel.textContent = t('settingsExcludePrivate');
     els.excludePinnedLabel.textContent = t('settingsExcludePinned');
     els.excludeListLabel.textContent = t('settingsExcludeList');
@@ -475,6 +514,11 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     els.backupLabel.textContent = t('settingsBackup');
     els.exportBtn.textContent = t('exportBtn');
     els.importBtn.textContent = t('importBtn');
+    els.deleteAllBtn.textContent = t('deleteAllBtn');
+    els.deleteConfirmBtn.textContent = t('deleteAllConfirm');
+    els.deleteCancelBtn.textContent = t('importCancel');
+    els.noticeLabel.textContent = t('noticeLabel');
+    els.noticeText.textContent = t('noticeText');
     els.importAppendBtn.textContent = t('importAppend');
     els.importReplaceBtn.textContent = t('importReplace');
     els.importCancelBtn.textContent = t('importCancel');
@@ -486,6 +530,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
   function populateSettingsForm() {
     els.minDays.value = state.settings.minDays;
+    els.maxHistory.value = state.settings.maxHistory;
     els.excludePrivate.checked = state.settings.excludePrivate;
     els.excludePinned.checked = state.settings.excludePinned;
     els.excludeList.value = (state.settings.excludeList || []).join('\n');
@@ -494,6 +539,8 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   async function saveSettingsFromForm() {
     const settings = {
       minDays: Math.max(0, Math.min(365, parseInt(els.minDays.value, 10) || 0)),
+      maxHistory: Math.max(MAX_HISTORY_RANGE.min, Math.min(MAX_HISTORY_RANGE.max,
+        parseInt(els.maxHistory.value, 10) || DEFAULT_SETTINGS.maxHistory)),
       excludePrivate: els.excludePrivate.checked,
       excludePinned: els.excludePinned.checked,
       excludeList: Logic.parseExcludeList(els.excludeList.value),
@@ -554,6 +601,8 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     const response = await sendMessage({ action: 'importHistory', entries: pending.entries, mode });
     if (response && response.error) {
       showStatus(response.error, true);
+    } else if (response && response.tooLarge) {
+      showStatus(t('statusImportTooLarge', fmtNum(response.total), fmtNum(response.max)), true, 10000);
     } else {
       showStatus(t('statusImported', t(mode === 'replace' ? 'importReplace' : 'importAppend'), response.total));
     }
@@ -567,6 +616,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   function wireEvents() {
     els.searchInput.addEventListener('input', () => {
       state.prefs.query = els.searchInput.value;
+      resetPaging();
       savePrefs();
       render();
     });
@@ -594,6 +644,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     [els.viewAllBtn, els.viewNewBtn, els.viewHistoryBtn].forEach((button) => {
       button.addEventListener('click', () => {
         state.prefs.view = button.dataset.view;
+        resetPaging();
         savePrefs();
         render();
       });
@@ -601,6 +652,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
     els.sortSelect.addEventListener('change', () => {
       currentSort().key = els.sortSelect.value;
+      resetPaging();
       savePrefs();
       render();
     });
@@ -608,6 +660,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     [els.sortAscBtn, els.sortDescBtn].forEach((button) => {
       button.addEventListener('click', () => {
         currentSort().dir = button.dataset.dir;
+        resetPaging();
         savePrefs();
         render();
       });
@@ -619,7 +672,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       if (willShow) populateSettingsForm();
     });
 
-    [els.minDays, els.excludePrivate, els.excludePinned, els.excludeList]
+    [els.minDays, els.maxHistory, els.excludePrivate, els.excludePinned, els.excludeList]
       .forEach((input) => input.addEventListener('change', saveSettingsFromForm));
 
     els.exportBtn.addEventListener('click', exportHistory);
@@ -638,6 +691,31 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       els.importModal.hidden = true;
       state.pendingImport = null;
     });
+
+    // "Delete all my history" cannot be undone, so it always asks first.
+    els.deleteAllBtn.addEventListener('click', () => {
+      els.deletePrompt.textContent = t('deleteAllPrompt', state.history.length);
+      els.deleteModal.hidden = false;
+      els.deleteCancelBtn.focus();
+    });
+    els.deleteCancelBtn.addEventListener('click', () => { els.deleteModal.hidden = true; });
+    els.deleteConfirmBtn.addEventListener('click', async () => {
+      els.deleteModal.hidden = true;
+      const response = await sendMessage({ action: 'clearHistory' });
+      await refresh();
+      if (response && response.error) showStatus(response.error, true);
+      else showStatus(t('statusDeletedAll', (response && response.removed) || 0));
+    });
+
+    // Next page: by click, or automatically when the list is scrolled to
+    // within 300px of its end (so rows are ready before you get there). The
+    // check is a few numbers, and a new page pushes the end ~12,000px away,
+    // so it cannot fire repeatedly.
+    els.showMoreBtn.addEventListener('click', showMore);
+    const scroller = els.list.parentElement;
+    scroller.addEventListener('scroll', () => {
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 300) showMore();
+    }, { passive: true });
 
     // Live updates pushed by the background script.
     brw.runtime.onMessage.addListener((message) => {

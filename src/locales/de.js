@@ -32,6 +32,7 @@ export default {
   welcomeHistory: "Tabs, die {0}+ Tage offen sind, bleiben hier, offen oder geschlossen. Mit + früher hinzufügen.",
   welcomeNew: "Keine neuen offenen Tabs.",
   noMatches: "Keine Treffer für die Suche.",
+  showMore: "Mehr anzeigen ({0} übrig)",
 
   // Rows
   rowSince: "seit {0}",
@@ -47,6 +48,7 @@ export default {
 
   // Settings panel
   settingsMinDays: "Tage offen, bevor ein Tab in den Verlauf kommt",
+  settingsMaxHistory: "Maximale Anzahl an Verlaufseinträgen",
   settingsExcludePrivate: "Private Fenster ausschließen",
   settingsExcludePinned: "Angeheftete Tabs ausschließen",
   settingsExcludeList: "Diese Seiten nie erfassen (eine pro Zeile)",
@@ -54,6 +56,16 @@ export default {
   settingsBackup: "Sicherung (NDJSON)",
   exportBtn: "Exportieren",
   importBtn: "Importieren",
+  deleteAllBtn: "Meinen gesamten Verlauf löschen",
+  deleteAllPrompt: "Den gesamten Verlauf ({0}) löschen? Das kann nicht rückgängig gemacht werden.",
+  deleteAllConfirm: "Löschen",
+  noticeLabel: "WICHTIG:",
+  noticeText: "„Meinen gesamten Verlauf löschen“ entfernt den Verlauf, den diese Erweiterung gespeichert hat. Die Erweiterung hat keinen Zugriff auf den Browserverlauf und kann Gelöschtes daher nicht wiederherstellen – die Einträge sind endgültig weg. Exportiere vorher eine Sicherung, falls du sie noch brauchst.",
+
+  // Capacity line (bottom of the panel)
+  capacityLine: "Verlauf: {0} / {1} · {2}",
+  capacityNearFull: "Fast voll. Erhöhe „{0}“ oder das Maximum in den Einstellungen oder entferne Einträge, die du nicht mehr brauchst.",
+  capacityFull: "Voll: Neue Tabs werden nicht mehr hinzugefügt. Erhöhe „{0}“ oder das Maximum in den Einstellungen oder entferne Einträge, die du nicht mehr brauchst.",
 
   // Import dialog
   importPrompt: "{0} importieren ({1} Einträge)?",
@@ -66,6 +78,9 @@ export default {
   statusExported: "{0} Einträge exportiert",
   statusImported: "Importiert ({0}): {1} Einträge im Verlauf",
   statusRemovedOne: "1 Eintrag entfernt",
+  statusDeletedAll: "Verlauf gelöscht ({0})",
+  statusHistoryFull: "Der Verlauf ist voll ({0} Einträge). Erhöhe das Maximum in den Einstellungen oder entferne Einträge.",
+  statusImportTooLarge: "Nicht importiert: Der Verlauf hätte {0} Einträge, mehr als das Maximum von {1}.",
   statusRestored: "{0} wiederhergestellt",
   statusUndo: "Rückgängig",
   statusNoEntries: "Die Datei enthält keine Einträge",
@@ -78,4 +93,9 @@ export default {
   unitHour: "Std",
   unitMinute: "Min",
   unitLessThanMinute: "<1Min",
+
+  // Size units
+  unitByte: "B",
+  unitKB: "KB",
+  unitMB: "MB",
 };

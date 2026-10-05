@@ -6,7 +6,7 @@
 //    tab creation time). Internal working data, keyed by tabId.
 //  - History: the user-facing log of tabs that stayed open >= minDays,
 //    deduplicated by URL. A tab is recorded the moment it goes away (closed,
-//    navigated elsewhere, or missing after a restart), and the daily scan
+//    navigated elsewhere, or missing after a restart), and the hourly scan
 //    also records long-open tabs while they are still open.
 //
 // The background owns all state; the panel is only a view that asks for a
@@ -37,7 +37,22 @@ function pickSettings(stored) {
   for (const key of Object.keys(DEFAULT_SETTINGS)) {
     if (stored && stored[key] !== undefined) settings[key] = stored[key];
   }
+  const max = Math.round(Number(settings.maxHistory));
+  settings.maxHistory = Number.isFinite(max)
+    ? Math.min(MAX_HISTORY_RANGE.max, Math.max(MAX_HISTORY_RANGE.min, max))
+    : DEFAULT_SETTINGS.maxHistory;
   return settings;
+}
+
+function stripIcons(records) {
+  let stripped = false;
+  for (const rec of records) {
+    if ('favIconUrl' in rec) {
+      delete rec.favIconUrl;
+      stripped = true;
+    }
+  }
+  return stripped;
 }
 
 function ensureLoaded() {
@@ -50,6 +65,12 @@ function ensureLoaded() {
         history: stored.history || {},
         lastScanAt: stored.lastScanAt || 0,
       };
+      // Site icons are no longer kept (they could be multi-KB data: URLs and
+      // eat into Chrome's 10 MB storage quota); drop any an older version
+      // stored, once, so the space is actually freed.
+      const strippedHistory = stripIcons(Object.values(cache.history));
+      const strippedTracker = stripIcons(Object.values(cache.openTabs));
+      if (strippedHistory || strippedTracker) await saveState(['history', 'openTabs']);
       return cache;
     })();
   }
@@ -95,7 +116,6 @@ function freshRecord(tab, now) {
   return {
     url: trackedUrl(tab),
     title: tab.title || '',
-    favIconUrl: tab.favIconUrl || '',
     windowId: tab.windowId,
     firstSeenAt: now,
     lastSeenAt: now,
@@ -113,12 +133,24 @@ function closeHistoryUrlIfGone(url, now) {
   return true;
 }
 
+// Keep a history entry's title up to date with the tab's latest one. Done
+// when the tab closes and when it is reopened from history; in between the
+// panel shows the live tab title anyway. An empty title (a tab still
+// loading) never overwrites a real one.
+function refreshTitle(entry, title) {
+  const latest = Logic.truncateTitle(title || '', FIXED_SETTINGS.maxTitleLength);
+  if (!entry || !latest || entry.title === latest) return false;
+  entry.title = latest;
+  return true;
+}
+
 // A tracked page went away from its tab (closed, or navigated elsewhere).
 // The tracker record must already be removed or replaced, so the "is this
 // URL still open in another tab" check sees the new state.
 function pageGone(rec, now) {
   const added = Logic.recordLongOpen(cache.history, rec, now, logicSettings(), true);
-  return closeHistoryUrlIfGone(rec.url, now) || added;
+  const retitled = refreshTitle(cache.history[rec.url], rec.title);
+  return closeHistoryUrlIfGone(rec.url, now) || added || retitled;
 }
 
 async function handleTabUpsert(tab) {
@@ -151,7 +183,6 @@ async function handleTabUpsert(tab) {
     historyChanged = pageGone(existing, now);
   } else {
     existing.title = tab.title || existing.title;
-    existing.favIconUrl = tab.favIconUrl || existing.favIconUrl;
     existing.windowId = tab.windowId;
     existing.lastSeenAt = now;
   }
@@ -161,6 +192,7 @@ async function handleTabUpsert(tab) {
   const entry = cache.history[url];
   if (entry && !entry.isOpen) {
     Logic.resumeStint(entry, now);
+    refreshTitle(entry, tab.title);
     historyChanged = true;
   }
 
@@ -202,7 +234,7 @@ async function reconcile() {
     const url = trackedUrl(tab);
     const match = (poolByUrl[url] || []).shift();
     rebuilt[tab.id] = match
-      ? { ...match, url, title: tab.title || match.title, favIconUrl: tab.favIconUrl || match.favIconUrl, windowId: tab.windowId, lastSeenAt: now }
+      ? { ...match, url, title: tab.title || match.title, windowId: tab.windowId, lastSeenAt: now }
       : freshRecord(tab, now);
   }
   cache.openTabs = rebuilt;
@@ -225,6 +257,7 @@ async function reconcile() {
     } else if (!entry.isOpen && rec) {
       // Same rule as a live reopen.
       Logic.resumeStint(entry, now);
+      refreshTitle(entry, rec.title);
     }
   }
 
@@ -244,9 +277,13 @@ async function ensureReconciled() {
 }
 
 // ---------------------------------------------------------------------------
-// Heartbeat & daily scan
+// Heartbeat & hourly scan
 // ---------------------------------------------------------------------------
 
+// Every HEARTBEAT_MINUTES: refresh "last seen" times, and once an hour also
+// run the scan. Riding on the heartbeat means the scan needs no alarm of its
+// own, adds no extra wake-ups, and catches up by itself after the computer
+// slept.
 async function heartbeat() {
   await ensureLoaded();
   const now = Date.now();
@@ -258,9 +295,9 @@ async function heartbeat() {
   }
   await saveState(['openTabs', 'history']);
 
-  // Catch-up: if the daily alarm was missed (laptop asleep at scan time),
-  // run the scan as soon as more than a day has passed.
-  if (now - cache.lastScanAt > 25 * 60 * 60 * 1000) {
+  // The 30 s slack keeps a heartbeat that fires a moment early from
+  // postponing the scan by a whole extra period.
+  if (now - cache.lastScanAt >= SCAN_INTERVAL_MINUTES * 60 * 1000 - 30 * 1000) {
     await runScan();
   }
 }
@@ -276,25 +313,14 @@ async function runScan() {
   return { added: result.added, updated: result.updated, closed: result.closed };
 }
 
-function nextScanTime() {
-  const [hours, minutes] = DAILY_SCAN_TIME.split(':').map(Number);
-  const next = new Date();
-  next.setHours(hours || 0, minutes || 0, 0, 0);
-  if (next.getTime() <= Date.now()) {
-    next.setDate(next.getDate() + 1);
-  }
-  return next.getTime();
-}
-
 async function ensureAlarms() {
   const existingHeartbeat = await brw.alarms.get(ALARM_HEARTBEAT);
   if (!existingHeartbeat) {
     brw.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: HEARTBEAT_MINUTES });
   }
-  const existingScan = await brw.alarms.get(ALARM_DAILY_SCAN);
-  if (!existingScan) {
-    brw.alarms.create(ALARM_DAILY_SCAN, { when: nextScanTime(), periodInMinutes: 24 * 60 });
-  }
+  // Alarms outlive extension updates, so an earlier version's separate
+  // daily-scan alarm would keep firing; the scan now runs from the heartbeat.
+  for (const name of LEGACY_ALARMS) await brw.alarms.clear(name);
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +347,7 @@ async function handleMessage(message) {
       if (cache.history[message.url]) return { added: false };
       const rec = Logic.oldestRecordByUrl(Object.values(cache.openTabs))[message.url];
       if (!rec) return { error: 'Tab is no longer open' };
+      if (Logic.isHistoryFull(cache.history, logicSettings())) return { full: true, max: cache.settings.maxHistory };
       cache.history[message.url] = Logic.newEntry(rec, Date.now(), logicSettings(), true);
       await saveState(['history']);
       broadcast('state-changed');
@@ -364,8 +391,27 @@ async function handleMessage(message) {
       broadcast('state-changed');
       return { restored };
     }
+    case 'clearHistory': {
+      // "Delete all my history": no Undo (the panel asks first). Like the
+      // trash button, open tabs restart their count, so a clean start does not
+      // refill History with tabs that were already long-open.
+      const now = Date.now();
+      const removed = Object.keys(cache.history).length;
+      cache.history = {};
+      for (const rec of Object.values(cache.openTabs)) {
+        rec.firstSeenAt = now;
+        rec.lastSeenAt = now;
+      }
+      await saveState(['history', 'openTabs']);
+      broadcast('state-changed');
+      return { removed };
+    }
     case 'importHistory': {
       const merged = Logic.mergeImport(cache.history, message.entries || [], message.mode);
+      // An import that would go over the maximum is refused as a whole, rather
+      // than silently keeping only part of the file.
+      const total = Object.keys(merged).length;
+      if (total > cache.settings.maxHistory) return { tooLarge: true, total, max: cache.settings.maxHistory };
       // The running browser, not the file, knows what is open right now.
       const open = openUrls();
       for (const entry of Object.values(merged)) {
@@ -379,10 +425,15 @@ async function handleMessage(message) {
     case 'getSettings':
       return { settings: cache.settings };
     case 'saveSettings': {
+      const previousMinDays = cache.settings.minDays;
       cache.settings = pickSettings({ ...cache.settings, ...(message.settings || {}) });
       await saveState(['settings']);
       // Exclusion changes can alter what is trackable.
       await reconcile();
+      // A new threshold applies at once: tabs that now qualify go to history
+      // without waiting for the hourly scan. (A higher one removes nothing —
+      // entries already in history stay.)
+      if (cache.settings.minDays !== previousMinDays) await runScan();
       return { settings: cache.settings };
     }
     default:
@@ -415,8 +466,8 @@ brw.tabs.onCreated.addListener((tab) => {
 });
 
 brw.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // onUpdated is chatty; only URL, title, favicon, or pinned changes matter.
-  if (!('url' in changeInfo) && !('title' in changeInfo) && !('favIconUrl' in changeInfo) && !('pinned' in changeInfo)) {
+  // onUpdated is chatty; only URL, title, or pinned changes matter.
+  if (!('url' in changeInfo) && !('title' in changeInfo) && !('pinned' in changeInfo)) {
     return;
   }
   handleTabUpsert(tab).catch((error) => console.error('onUpdated:', error));
@@ -427,8 +478,7 @@ brw.tabs.onRemoved.addListener((tabId) => {
 });
 
 brw.alarms.onAlarm.addListener((alarm) => {
-  const task = alarm.name === ALARM_DAILY_SCAN ? runScan() : alarm.name === ALARM_HEARTBEAT ? heartbeat() : null;
-  if (task) task.catch((error) => console.error(`Alarm ${alarm.name}:`, error));
+  if (alarm.name === ALARM_HEARTBEAT) heartbeat().catch((error) => console.error('Heartbeat:', error));
 });
 
 brw.runtime.onMessage.addListener((message, sender, sendResponse) => {
