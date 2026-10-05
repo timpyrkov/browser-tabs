@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "Apri nel pannello laterale",
 
   // Views and sort
-  viewClosed: "Chiuse",
-  viewOpen: "Aperte",
-  viewClosedTitle: "Schede rimaste aperte per giorni e poi chiuse",
-  viewOpenTitle: "Schede aperte ora",
+  viewAll: "Tutte",
+  viewNew: "Nuove",
+  viewHistory: "Cronologia",
+  viewAllTitle: "Tutte le schede: nuove e in cronologia",
+  viewNewTitle: "Schede aperte non ancora in cronologia",
+  viewHistoryTitle: "Schede conservate in cronologia: aperte da {0}+ giorni o aggiunte con +",
   sortLabel: "Ordina",
-  sortName: "Nome",
+  sortTitle: "Titolo",
+  sortUrl: "URL",
   sortOpened: "Apertura",
   sortDuration: "Durata",
   sortClosed: "Chiusura",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "Decrescente",
 
   // Empty states
-  welcomeClosed: "Le schede aperte da {0}+ giorni compaiono qui quando vengono chiuse.",
-  welcomeOpen: "Nessuna scheda aperta monitorata.",
+  welcomeHistory: "Le schede aperte da {0}+ giorni restano qui, aperte o chiuse. Aggiungine una prima con +.",
+  welcomeNew: "Nessuna nuova scheda aperta.",
   noMatches: "Nessun risultato per la ricerca.",
 
   // Rows
-  rowOpenFor: "aperta {0}",
-  rowClosedAgo: "chiusa {0} fa",
+  rowSince: "dal {0}",
+  rowOpenedAt: "Aperta: {0}",
+  rowClosedAt: "Chiusa: {0}",
+  rowInHistory: "In cronologia",
+  rowNotInHistory: "Non ancora in cronologia",
   rowReopen: "Clic per riaprire",
   rowGoToTab: "Clic per andare a questa scheda",
   rowFilterByDomain: "Filtra per questo dominio",
-  actionRemove: "Rimuovi dalla cronologia",
+  actionAdd: "Aggiungi alla cronologia",
+  actionRemove: "Rimuovi dalla cronologia (il conteggio riparte da zero)",
 
   // Settings panel
   settingsMinDays: "Giorni di apertura prima di entrare in cronologia",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Annulla",
 
   // Status messages
+  statusAdded: "Aggiunta alla cronologia",
   statusExported: "Esportate {0} voci",
   statusImported: "Importato ({0}): {1} voci in cronologia",
   statusRemovedOne: "1 voce rimossa",

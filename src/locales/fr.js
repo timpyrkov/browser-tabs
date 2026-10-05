@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "Ouvrir dans le panneau latéral",
 
   // Views and sort
-  viewClosed: "Fermés",
-  viewOpen: "Ouverts",
-  viewClosedTitle: "Onglets restés ouverts plusieurs jours puis fermés",
-  viewOpenTitle: "Onglets ouverts maintenant",
+  viewAll: "Tous",
+  viewNew: "Nouveaux",
+  viewHistory: "Historique",
+  viewAllTitle: "Tous les onglets : nouveaux et dans l’historique",
+  viewNewTitle: "Onglets ouverts pas encore dans l’historique",
+  viewHistoryTitle: "Onglets gardés dans l’historique : ouverts {0}+ jours ou ajoutés avec +",
   sortLabel: "Trier",
-  sortName: "Nom",
+  sortTitle: "Titre",
+  sortUrl: "URL",
   sortOpened: "Ouverture",
   sortDuration: "Durée",
   sortClosed: "Fermeture",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "Décroissant",
 
   // Empty states
-  welcomeClosed: "Les onglets ouverts {0}+ jours apparaissent ici une fois fermés.",
-  welcomeOpen: "Aucun onglet ouvert n’est suivi.",
+  welcomeHistory: "Les onglets ouverts {0}+ jours sont gardés ici, ouverts ou fermés. Ajoutez-en un plus tôt avec +.",
+  welcomeNew: "Aucun nouvel onglet ouvert.",
   noMatches: "Aucun résultat pour cette recherche.",
 
   // Rows
-  rowOpenFor: "ouvert {0}",
-  rowClosedAgo: "fermé il y a {0}",
+  rowSince: "depuis {0}",
+  rowOpenedAt: "Ouvert : {0}",
+  rowClosedAt: "Fermé : {0}",
+  rowInHistory: "Dans l’historique",
+  rowNotInHistory: "Pas encore dans l’historique",
   rowReopen: "Cliquer pour rouvrir",
   rowGoToTab: "Cliquer pour aller à cet onglet",
   rowFilterByDomain: "Filtrer par ce domaine",
-  actionRemove: "Retirer de l'historique",
+  actionAdd: "Ajouter à l’historique",
+  actionRemove: "Retirer de l’historique (son compteur repart de zéro)",
 
   // Settings panel
   settingsMinDays: "Jours d'ouverture avant d'entrer dans l'historique",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Annuler",
 
   // Status messages
+  statusAdded: "Ajouté à l’historique",
   statusExported: "{0} entrées exportées",
   statusImported: "Importé ({0}) : {1} entrées dans l'historique",
   statusRemovedOne: "1 entrée supprimée",

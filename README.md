@@ -58,21 +58,25 @@ extension sidebar)
 
 ## ✨ Features
 
-- **Open view** — the tabs open right now, longest open first; click one to jump to it.
-  Tabs that have not reached *N* days yet are shown muted.
-- **Closed view (default)** — tabs that stayed open for days, newest close first, each
-  with how long it was open (`open 23d`) and when it closed (`closed 2h ago`; hover for
-  the exact date). Click to reopen; × removes an entry, with **Undo**.
-- **Sort** either view by name, open time, duration or (Closed) close time, with ↑ / ↓
-  for ascending / descending; each view remembers its own order.
+- **One list, three filters** — **History** (default): every URL kept in history, open
+  or closed, most recently closed first; **New**: open tabs not in history yet; **All**:
+  both. Each row shows its open and close date-time (`09/10, 14:30 → 10/05, 09:12`, or
+  `since 09/20, 14:30` while open; hover for full dates) and how long it was open,
+  coloured **gold** when the URL is in history and **green** when it is not yet. Click a
+  row to switch to the open tab, or to reopen a closed one.
+- **Add or remove by hand** — **+** puts a new tab into history right away; the **trash**
+  button removes a URL from history (with **Undo**) and restarts its count from zero.
+- **Sort** by title, URL, open time, duration or close time, with ↑ / ↓ for ascending /
+  descending; each filter remembers its own order.
 - **Recorded the moment it goes away** — closing a long-open tab, navigating it to
   another page, or losing it in a browser crash records it immediately; a daily scan
   also records long-open tabs while they are still open, so a backup always has them.
+- **Once in history, always in history** — reopening a URL from history continues its
+  count, however long it was closed; only the trash button restarts it.
 - **Search** across titles and URLs; click a row's domain to filter by it.
 - **One URL, one entry** — the `#fragment` and tracking parameters (`utm_*`, `fbclid`, …)
   are ignored, and per-site rules fold the many URL shapes of one YouTube video,
   Pinterest pin, Instagram/Facebook/X post, Reddit thread, TikTok or Vimeo into one.
-  A tab closed and reopened within 30 days continues its count instead of restarting.
 - **Stop list** — always-open apps (Gmail, Calendar, Translate, WhatsApp/Telegram web by
   default) are never tracked. Private windows are excluded by default; pinned tabs can be.
 - **Backup** — export the whole history as NDJSON (one JSON object per line;

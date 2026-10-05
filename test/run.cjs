@@ -125,13 +125,13 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   result = L.promoteOpenTabs(result.history, [], { minDays: 7, maxTitleLength: 100 }, now + 2 * DAY);
   eq('gone tab is stamped closed', [result.closed, result.history['https://old.example/'].isOpen], [1, false]);
 
-  section('logic: reopen continues or restarts the count');
+  section('logic: reopening a history entry always continues its count');
   let entry = { isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 10 * DAY, gapMs: 0 };
-  L.resumeStint(entry, 12 * DAY, 12 * DAY, { gapToleranceDays: 30 });
-  eq('short break continues', [entry.firstSeenAt, entry.gapMs], [0, 2 * DAY]);
+  L.resumeStint(entry, 12 * DAY);
+  eq('short break continues', [entry.firstSeenAt, entry.gapMs, entry.isOpen], [0, 2 * DAY, true]);
   entry = { isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 10 * DAY, gapMs: 0 };
-  L.resumeStint(entry, 50 * DAY, 50 * DAY, { gapToleranceDays: 30 });
-  eq('long break restarts', [entry.firstSeenAt, entry.gapMs], [50 * DAY, 0]);
+  L.resumeStint(entry, 400 * DAY);
+  eq('a very long break continues too (no restart rule)', [entry.firstSeenAt, entry.gapMs], [0, 390 * DAY]);
 
   section('logic: record a long-open tab when it goes away');
   const settings = { minDays: 7, maxTitleLength: 100, excludeList: ['mail.google.com'] };
@@ -147,14 +147,18 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
 
   section('logic: sort');
   const entries = [
-    { title: 'a', isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 20 * DAY },        // open 20d, closed earlier
-    { title: 'b', isOpen: false, firstSeenAt: 25 * DAY, lastSeenOpenAt: 33 * DAY }, // open 8d, closed last
+    { title: 'a', url: 'https://www.zeta.org/', isOpen: false, firstSeenAt: 0, lastSeenOpenAt: 20 * DAY },        // open 20d, closed earlier
+    { title: 'b', url: 'http://alpha.com/x', isOpen: false, firstSeenAt: 25 * DAY, lastSeenOpenAt: 33 * DAY },     // open 8d, closed last
   ];
   const order = (key, dir) => L.sortEntries(entries, key, dir, now).map((e) => e.title).join('');
   eq('close time: newest first / oldest first', [order('closed', 'desc'), order('closed', 'asc')], ['ba', 'ab']);
   eq('duration: longest first / shortest first', [order('duration', 'desc'), order('duration', 'asc')], ['ab', 'ba']);
   eq('open time: newest first / oldest first', [order('opened', 'desc'), order('opened', 'asc')], ['ba', 'ab']);
-  eq('name: A-Z / Z-A', [order('name', 'asc'), order('name', 'desc')], ['ab', 'ba']);
+  eq('title: A-Z / Z-A', [order('title', 'asc'), order('title', 'desc')], ['ab', 'ba']);
+  eq('url: A-Z ignoring scheme and www / Z-A', [order('url', 'asc'), order('url', 'desc')], ['ba', 'ab']);
+  eq('close time: a still-open entry counts as closing now',
+    L.sortEntries([...entries, { title: 'c', isOpen: true, firstSeenAt: 30 * DAY, lastSeenOpenAt: 31 * DAY }],
+      'closed', 'desc', now).map((e) => e.title).join(''), 'cba');
   eq('open items sort by duration up to now',
     L.sortEntries([{ title: 'x', isOpen: true, firstSeenAt: now - DAY }, { title: 'y', isOpen: true, firstSeenAt: now - 3 * DAY }],
       'duration', 'desc', now).map((e) => e.title), ['y', 'x']);
@@ -243,6 +247,19 @@ function loadBackground({ kind = 'chrome', local = {}, tabs = [] } = {}) {
   const restoredReply = await env.ask({ action: 'restoreEntries', entries: removedReply.removed });
   state = await env.ask({ action: 'getState' });
   eq('undo after a worker restart restores it', [restoredReply.restored, state.history.length], [1, 1]);
+
+  section('background: "+" adds a new tab, trash restarts its count');
+  store = seeded([tracker('https://example.com/young', 2)]);
+  env = loadBackground({ kind: 'chrome', local: store, tabs: [{ id: 1, url: 'https://example.com/young', title: 'x', windowId: 1 }] });
+  eq('a 2-day tab is not in history yet', (await env.ask({ action: 'getState' })).history, []);
+  eq('+ adds it', await env.ask({ action: 'addEntry', url: 'https://example.com/young' }), { added: true });
+  state = await env.ask({ action: 'getState' });
+  eq('kept its 2 days so far, and open',
+    [Math.round(L.entryDurationMs(state.history[0], Date.now()) / DAY), state.history[0].isOpen], [2, true]);
+  await env.ask({ action: 'deleteEntries', urls: ['https://example.com/young'] });
+  state = await env.ask({ action: 'getState' });
+  eq('trash: out of history, still-open tab counts from zero again',
+    [state.history.length, Date.now() - state.openTabs[0].firstSeenAt < 60000], [0, true]);
 
   section('background: settings from older versions are dropped');
   env = loadBackground({ kind: 'chrome', local: { settings: { minDays: 3, syncEnabled: true, scanTime: '09:00' } } });

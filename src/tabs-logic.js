@@ -272,25 +272,18 @@
   /**
    * Resume a closed entry because its URL is open again.
    *
-   * A tab closed on occasion and reopened is treated as ONE episode, the way a
-   * night of sleep with wake breaks is still one night: the span runs from the
-   * first open to the last time it was seen open, breaks included. Only after a
-   * long absence (`gapToleranceDays`) does it count as a new interest and the
-   * clock restart. The accumulated break is kept in `gapMs` so the UI can be
-   * honest about what the span contains.
+   * Once a URL is in history it stays there, and reopening it always
+   * continues the same count, however long it was closed: the span runs from
+   * the first open to the last time it was seen open, breaks included. (There
+   * is deliberately no "restart after N days" rule — it was hard to keep in
+   * mind.) The only way to restart the count is removing the entry. The
+   * accumulated break is kept in `gapMs` for the export.
    *
    * Shared by every reopen path — live tab event, startup reconcile, and the
    * daily scan — so they cannot drift apart.
    */
-  function resumeStint(entry, newStintStart, now, settings) {
-    const toleranceDays = settings && settings.gapToleranceDays != null ? settings.gapToleranceDays : 30;
-    const gapMs = Math.max(0, now - (entry.lastSeenOpenAt || now));
-    if (gapMs <= toleranceDays * DAY_MS) {
-      entry.gapMs = (entry.gapMs || 0) + gapMs;
-    } else {
-      entry.firstSeenAt = newStintStart;
-      entry.gapMs = 0;
-    }
+  function resumeStint(entry, now) {
+    entry.gapMs = (entry.gapMs || 0) + Math.max(0, now - (entry.lastSeenOpenAt || now));
     entry.isOpen = true;
     entry.lastSeenOpenAt = now;
     return entry;
@@ -407,10 +400,9 @@
         result[url] = newEntry(rec, now, settings, true);
         added++;
       } else {
-        // Reopened after being closed: continue the same episode unless the
-        // break was long enough to count as a new one (see resumeStint).
+        // Reopened after being closed: continue the same count (see resumeStint).
         if (!existing.isOpen) {
-          resumeStint(existing, rec.firstSeenAt, now, settings);
+          resumeStint(existing, now);
         }
         existing.title = truncateTitle(rec.title, settings.maxTitleLength) || existing.title;
         existing.favIconUrl = rec.favIconUrl || existing.favIconUrl || '';
@@ -526,25 +518,32 @@
       .map((line) => JSON.parse(line));
   }
 
-  // Sort keys: 'name' (title), 'opened' (firstSeenAt), 'duration' (how long it
-  // was open), 'closed' (close time; closed entries only). 'closed' is the main
-  // view's default, because the browser's own history only orders by when a
-  // page was opened. Works on history entries and on open-tab items shaped
-  // like them ({ title, firstSeenAt, lastSeenOpenAt, isOpen }); ties fall
-  // back to the title.
-  const SORT_KEYS = ['name', 'opened', 'duration', 'closed'];
+  // Sort keys: 'title', 'url' (ignoring the scheme and "www."), 'opened'
+  // (firstSeenAt), 'duration' (how long it was open), 'closed' (close time;
+  // an entry that is still open counts as closing now, so it sorts as the
+  // most recent). 'closed' is the History view's default, because the
+  // browser's own history only orders by when a page was opened. Works on
+  // history entries and on open-tab items shaped like them
+  // ({ title, url, firstSeenAt, lastSeenOpenAt, isOpen }); ties fall back to
+  // the title.
+  const SORT_KEYS = ['title', 'url', 'opened', 'duration', 'closed'];
   const SORT_DIRS = ['asc', 'desc'];
+
+  function urlSortText(url) {
+    return String(url || '').replace(/^https?:\/\//, '').replace(/^www\./, '').toLowerCase();
+  }
 
   function sortEntries(entries, key, dir, now) {
     const sign = dir === 'asc' ? 1 : -1;
     const byTitle = (a, b) => (a.title || '').localeCompare(b.title || '');
-    const value = {
-      opened: (entry) => entry.firstSeenAt || 0,
-      duration: (entry) => entryDurationMs(entry, now),
-      closed: (entry) => entry.lastSeenOpenAt || 0,
-    }[key];
-    return entries.slice().sort((a, b) =>
-      value ? (sign * (value(a) - value(b)) || byTitle(a, b)) : sign * byTitle(a, b));
+    const compare = {
+      title: byTitle,
+      url: (a, b) => urlSortText(a.url).localeCompare(urlSortText(b.url)),
+      opened: (a, b) => (a.firstSeenAt || 0) - (b.firstSeenAt || 0),
+      duration: (a, b) => entryDurationMs(a, now) - entryDurationMs(b, now),
+      closed: (a, b) => (a.isOpen ? now : a.lastSeenOpenAt || 0) - (b.isOpen ? now : b.lastSeenOpenAt || 0),
+    }[key] || byTitle;
+    return entries.slice().sort((a, b) => (sign * compare(a, b)) || byTitle(a, b));
   }
 
   function matchesQuery(entry, query) {

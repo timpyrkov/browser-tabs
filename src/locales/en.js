@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "Open in side panel",
 
   // Views and sort
-  viewClosed: "Closed",
-  viewOpen: "Open",
-  viewClosedTitle: "Tabs that stayed open for days and were closed",
-  viewOpenTitle: "Tabs open right now",
+  viewAll: "All",
+  viewNew: "New",
+  viewHistory: "History",
+  viewAllTitle: "All tabs: new and in history",
+  viewNewTitle: "Open tabs not yet in history",
+  viewHistoryTitle: "Tabs kept in history: open {0}+ days, or added with +",
   sortLabel: "Sort",
-  sortName: "Name",
+  sortTitle: "Title",
+  sortUrl: "URL",
   sortOpened: "Opened",
   sortDuration: "Duration",
   sortClosed: "Closed",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "Descending",
 
   // Empty states
-  welcomeClosed: "Tabs that stay open for {0}+ days appear here once they are closed.",
-  welcomeOpen: "No open tabs are being tracked.",
+  welcomeHistory: "Tabs open for {0}+ days are kept here, open or closed. Add any tab sooner with +.",
+  welcomeNew: "No new open tabs.",
   noMatches: "Nothing matches the search.",
 
   // Rows
-  rowOpenFor: "open {0}",
-  rowClosedAgo: "closed {0} ago",
+  rowSince: "since {0}",
+  rowOpenedAt: "Opened: {0}",
+  rowClosedAt: "Closed: {0}",
+  rowInHistory: "In history",
+  rowNotInHistory: "Not in history yet",
   rowReopen: "Click to reopen",
   rowGoToTab: "Click to go to this tab",
   rowFilterByDomain: "Filter by this domain",
-  actionRemove: "Remove from history",
+  actionAdd: "Add to history",
+  actionRemove: "Remove from history (its count restarts from zero)",
 
   // Settings panel
   settingsMinDays: "Days open before a tab enters history",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Cancel",
 
   // Status messages
+  statusAdded: "Added to history",
   statusExported: "Exported {0} entries",
   statusImported: "Imported ({0}): {1} entries in history",
   statusRemovedOne: "Removed 1 entry",

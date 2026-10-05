@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "サイドパネルで開く",
 
   // Views and sort
-  viewClosed: "閉じたタブ",
-  viewOpen: "開いているタブ",
-  viewClosedTitle: "何日も開いたままで、その後閉じられたタブ",
-  viewOpenTitle: "現在開いているタブ",
+  viewAll: "すべて",
+  viewNew: "新規",
+  viewHistory: "履歴",
+  viewAllTitle: "すべてのタブ：新規と履歴",
+  viewNewTitle: "まだ履歴にない開いているタブ",
+  viewHistoryTitle: "履歴に保存されたタブ：{0}日以上開いていたか、+で追加したもの",
   sortLabel: "並べ替え",
-  sortName: "名前",
+  sortTitle: "タイトル",
+  sortUrl: "URL",
   sortOpened: "開いた日時",
   sortDuration: "期間",
   sortClosed: "閉じた日時",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "降順",
 
   // Empty states
-  welcomeClosed: "{0}日以上開いていたタブは、閉じるとここに表示されます。",
-  welcomeOpen: "追跡中の開いているタブはありません。",
+  welcomeHistory: "{0}日以上開いていたタブは、開いていても閉じても、ここに保存されます。+で早めに追加できます。",
+  welcomeNew: "新しく開いたタブはありません。",
   noMatches: "検索に一致する項目はありません。",
 
   // Rows
-  rowOpenFor: "{0} 開いている",
-  rowClosedAgo: "{0}前に閉じました",
+  rowSince: "{0}から",
+  rowOpenedAt: "開いた日時：{0}",
+  rowClosedAt: "閉じた日時：{0}",
+  rowInHistory: "履歴にあります",
+  rowNotInHistory: "まだ履歴にありません",
   rowReopen: "クリックして再度開く",
   rowGoToTab: "クリックしてこのタブに移動",
   rowFilterByDomain: "このドメインで絞り込む",
-  actionRemove: "履歴から削除",
+  actionAdd: "履歴に追加",
+  actionRemove: "履歴から削除（時間は0から数え直し）",
 
   // Settings panel
   settingsMinDays: "履歴に入るまでに開いている日数",
@@ -55,6 +62,7 @@ export default {
   importCancel: "キャンセル",
 
   // Status messages
+  statusAdded: "履歴に追加しました",
   statusExported: "{0} 件をエクスポートしました",
   statusImported: "インポート（{0}）: 履歴に {1} 件",
   statusRemovedOne: "1 件を削除しました",

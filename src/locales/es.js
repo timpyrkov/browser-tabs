@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "Abrir en el panel lateral",
 
   // Views and sort
-  viewClosed: "Cerradas",
-  viewOpen: "Abiertas",
-  viewClosedTitle: "Pestañas que estuvieron abiertas durante días y se cerraron",
-  viewOpenTitle: "Pestañas abiertas ahora",
+  viewAll: "Todas",
+  viewNew: "Nuevas",
+  viewHistory: "Historial",
+  viewAllTitle: "Todas las pestañas: nuevas y en el historial",
+  viewNewTitle: "Pestañas abiertas que aún no están en el historial",
+  viewHistoryTitle: "Pestañas guardadas en el historial: abiertas {0}+ días o añadidas con +",
   sortLabel: "Ordenar",
-  sortName: "Nombre",
+  sortTitle: "Título",
+  sortUrl: "URL",
   sortOpened: "Apertura",
   sortDuration: "Duración",
   sortClosed: "Cierre",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "Descendente",
 
   // Empty states
-  welcomeClosed: "Las pestañas abiertas {0}+ días aparecen aquí cuando se cierran.",
-  welcomeOpen: "No hay pestañas abiertas en seguimiento.",
+  welcomeHistory: "Las pestañas abiertas {0}+ días se guardan aquí, abiertas o cerradas. Añade cualquiera antes con +.",
+  welcomeNew: "No hay pestañas nuevas abiertas.",
   noMatches: "Nada coincide con la búsqueda.",
 
   // Rows
-  rowOpenFor: "abierta {0}",
-  rowClosedAgo: "cerrada hace {0}",
+  rowSince: "desde {0}",
+  rowOpenedAt: "Abierta: {0}",
+  rowClosedAt: "Cerrada: {0}",
+  rowInHistory: "En el historial",
+  rowNotInHistory: "Aún no está en el historial",
   rowReopen: "Clic para reabrir",
   rowGoToTab: "Clic para ir a esta pestaña",
   rowFilterByDomain: "Filtrar por este dominio",
-  actionRemove: "Quitar del historial",
+  actionAdd: "Añadir al historial",
+  actionRemove: "Quitar del historial (su recuento vuelve a cero)",
 
   // Settings panel
   settingsMinDays: "Días abierta antes de entrar en el historial",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Cancelar",
 
   // Status messages
+  statusAdded: "Añadida al historial",
   statusExported: "Exportadas {0} entradas",
   statusImported: "Importado ({0}): {1} entradas en el historial",
   statusRemovedOne: "1 entrada eliminada",

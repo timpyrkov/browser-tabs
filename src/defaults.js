@@ -35,8 +35,6 @@ const DEFAULT_SETTINGS = {
 // Fixed behaviour that used to be user settings. Kept as named constants so
 // the logic stays readable and testable; see tabs-logic.js for what each does.
 const FIXED_SETTINGS = {
-  // Reopening a URL within this many days continues the same count.
-  gapToleranceDays: 30,
   // Titles longer than this are truncated with an ellipsis.
   maxTitleLength: 100,
 };

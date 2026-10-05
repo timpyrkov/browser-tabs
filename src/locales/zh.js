@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "在侧边栏中打开",
 
   // Views and sort
-  viewClosed: "已关闭",
-  viewOpen: "已打开",
-  viewClosedTitle: "打开多日后被关闭的标签页",
-  viewOpenTitle: "当前打开的标签页",
+  viewAll: "全部",
+  viewNew: "新的",
+  viewHistory: "历史",
+  viewAllTitle: "所有标签页：新的和历史中的",
+  viewNewTitle: "尚未加入历史的打开标签页",
+  viewHistoryTitle: "历史中保存的标签页：打开 {0} 天以上，或用 + 添加",
   sortLabel: "排序",
-  sortName: "名称",
+  sortTitle: "标题",
+  sortUrl: "网址",
   sortOpened: "打开时间",
   sortDuration: "时长",
   sortClosed: "关闭时间",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "降序",
 
   // Empty states
-  welcomeClosed: "打开 {0} 天以上的标签页关闭后会显示在这里。",
-  welcomeOpen: "没有正在跟踪的打开标签页。",
+  welcomeHistory: "打开 {0} 天以上的标签页会保存在这里，无论是否已关闭。可用 + 提前添加。",
+  welcomeNew: "没有新的打开标签页。",
   noMatches: "没有匹配的结果。",
 
   // Rows
-  rowOpenFor: "已打开 {0}",
-  rowClosedAgo: "{0}前关闭",
+  rowSince: "自 {0}",
+  rowOpenedAt: "打开：{0}",
+  rowClosedAt: "关闭：{0}",
+  rowInHistory: "在历史中",
+  rowNotInHistory: "尚未加入历史",
   rowReopen: "点击重新打开",
   rowGoToTab: "点击转到此标签页",
   rowFilterByDomain: "按此域名筛选",
-  actionRemove: "从历史中移除",
+  actionAdd: "添加到历史",
+  actionRemove: "从历史中移除（计时将从零开始）",
 
   // Settings panel
   settingsMinDays: "进入历史前需打开的天数",
@@ -55,6 +62,7 @@ export default {
   importCancel: "取消",
 
   // Status messages
+  statusAdded: "已添加到历史",
   statusExported: "已导出 {0} 条",
   statusImported: "已导入（{0}）：历史中共 {1} 条",
   statusRemovedOne: "已移除 1 条",

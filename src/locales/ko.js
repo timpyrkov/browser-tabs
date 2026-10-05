@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "사이드 패널에서 열기",
 
   // Views and sort
-  viewClosed: "닫힘",
-  viewOpen: "열림",
-  viewClosedTitle: "며칠 동안 열려 있다가 닫힌 탭",
-  viewOpenTitle: "지금 열려 있는 탭",
+  viewAll: "전체",
+  viewNew: "새 탭",
+  viewHistory: "기록",
+  viewAllTitle: "모든 탭: 새 탭과 기록",
+  viewNewTitle: "아직 기록에 없는 열린 탭",
+  viewHistoryTitle: "기록에 보관된 탭: {0}일 이상 열렸거나 +로 추가한 탭",
   sortLabel: "정렬",
-  sortName: "이름",
+  sortTitle: "제목",
+  sortUrl: "URL",
   sortOpened: "연 시간",
   sortDuration: "기간",
   sortClosed: "닫은 시간",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "내림차순",
 
   // Empty states
-  welcomeClosed: "{0}일 이상 열려 있던 탭은 닫히면 여기에 표시됩니다.",
-  welcomeOpen: "추적 중인 열린 탭이 없습니다.",
+  welcomeHistory: "{0}일 이상 열린 탭은 열려 있든 닫혔든 여기에 보관됩니다. +로 더 일찍 추가할 수 있습니다.",
+  welcomeNew: "새로 열린 탭이 없습니다.",
   noMatches: "검색 결과가 없습니다.",
 
   // Rows
-  rowOpenFor: "{0} 열림",
-  rowClosedAgo: "{0} 전에 닫힘",
+  rowSince: "{0}부터",
+  rowOpenedAt: "연 시간: {0}",
+  rowClosedAt: "닫은 시간: {0}",
+  rowInHistory: "기록에 있음",
+  rowNotInHistory: "아직 기록에 없음",
   rowReopen: "클릭하여 다시 열기",
   rowGoToTab: "클릭하여 이 탭으로 이동",
   rowFilterByDomain: "이 도메인으로 필터",
-  actionRemove: "기록에서 제거",
+  actionAdd: "기록에 추가",
+  actionRemove: "기록에서 제거 (시간이 0부터 다시 계산됨)",
 
   // Settings panel
   settingsMinDays: "기록에 들어가기까지 열려 있어야 하는 일수",
@@ -55,6 +62,7 @@ export default {
   importCancel: "취소",
 
   // Status messages
+  statusAdded: "기록에 추가됨",
   statusExported: "{0}개 항목을 내보냈습니다",
   statusImported: "가져오기({0}): 기록에 {1}개 항목",
   statusRemovedOne: "1개 항목을 제거했습니다",

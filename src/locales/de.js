@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "In der Seitenleiste öffnen",
 
   // Views and sort
-  viewClosed: "Geschlossen",
-  viewOpen: "Offen",
-  viewClosedTitle: "Tabs, die tagelang offen waren und geschlossen wurden",
-  viewOpenTitle: "Jetzt offene Tabs",
+  viewAll: "Alle",
+  viewNew: "Neu",
+  viewHistory: "Verlauf",
+  viewAllTitle: "Alle Tabs: neu und im Verlauf",
+  viewNewTitle: "Offene Tabs, die noch nicht im Verlauf sind",
+  viewHistoryTitle: "Tabs im Verlauf: {0}+ Tage offen oder mit + hinzugefügt",
   sortLabel: "Sortieren",
-  sortName: "Name",
+  sortTitle: "Titel",
+  sortUrl: "URL",
   sortOpened: "Geöffnet",
   sortDuration: "Dauer",
   sortClosed: "Geschlossen",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "Absteigend",
 
   // Empty states
-  welcomeClosed: "Tabs, die {0}+ Tage offen sind, erscheinen hier, sobald sie geschlossen werden.",
-  welcomeOpen: "Keine offenen Tabs werden verfolgt.",
+  welcomeHistory: "Tabs, die {0}+ Tage offen sind, bleiben hier, offen oder geschlossen. Mit + früher hinzufügen.",
+  welcomeNew: "Keine neuen offenen Tabs.",
   noMatches: "Keine Treffer für die Suche.",
 
   // Rows
-  rowOpenFor: "offen {0}",
-  rowClosedAgo: "vor {0} geschlossen",
+  rowSince: "seit {0}",
+  rowOpenedAt: "Geöffnet: {0}",
+  rowClosedAt: "Geschlossen: {0}",
+  rowInHistory: "Im Verlauf",
+  rowNotInHistory: "Noch nicht im Verlauf",
   rowReopen: "Klicken zum erneuten Öffnen",
   rowGoToTab: "Klicken, um zu diesem Tab zu wechseln",
   rowFilterByDomain: "Nach dieser Domain filtern",
-  actionRemove: "Aus dem Verlauf entfernen",
+  actionAdd: "Zum Verlauf hinzufügen",
+  actionRemove: "Aus dem Verlauf entfernen (Zählung beginnt bei null)",
 
   // Settings panel
   settingsMinDays: "Tage offen, bevor ein Tab in den Verlauf kommt",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Abbrechen",
 
   // Status messages
+  statusAdded: "Zum Verlauf hinzugefügt",
   statusExported: "{0} Einträge exportiert",
   statusImported: "Importiert ({0}): {1} Einträge im Verlauf",
   statusRemovedOne: "1 Eintrag entfernt",

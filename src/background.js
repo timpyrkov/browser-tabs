@@ -156,11 +156,11 @@ async function handleTabUpsert(tab) {
     existing.lastSeenAt = now;
   }
 
-  // Reopening a URL history recorded as closed continues the same episode
-  // unless the break outlasted the tolerance — see Logic.resumeStint.
+  // Reopening a URL history recorded as closed continues the same count —
+  // see Logic.resumeStint.
   const entry = cache.history[url];
   if (entry && !entry.isOpen) {
-    Logic.resumeStint(entry, cache.openTabs[tab.id].firstSeenAt, now, logicSettings());
+    Logic.resumeStint(entry, now);
     historyChanged = true;
   }
 
@@ -224,7 +224,7 @@ async function reconcile() {
       entry.isOpen = false;
     } else if (!entry.isOpen && rec) {
       // Same rule as a live reopen.
-      Logic.resumeStint(entry, rec.firstSeenAt, now, logicSettings());
+      Logic.resumeStint(entry, now);
     }
   }
 
@@ -315,18 +315,38 @@ async function handleMessage(message) {
         history: Object.values(cache.history),
         openTabs: Object.entries(cache.openTabs).map(([tabId, rec]) => ({ tabId: Number(tabId), ...rec })),
       };
+    case 'addEntry': {
+      // "+" on a tab not yet in history: add it now, without waiting for it
+      // to reach minDays. Its count so far is kept.
+      if (cache.history[message.url]) return { added: false };
+      const rec = Logic.oldestRecordByUrl(Object.values(cache.openTabs))[message.url];
+      if (!rec) return { error: 'Tab is no longer open' };
+      cache.history[message.url] = Logic.newEntry(rec, Date.now(), logicSettings(), true);
+      await saveState(['history']);
+      broadcast('state-changed');
+      return { added: true };
+    }
     case 'deleteEntries': {
+      // Removing an entry also restarts the count of any tab still showing
+      // that URL: it becomes a new tab counting from zero again.
       // The removed entries go back to the panel, which keeps them for Undo:
       // a Chrome worker is unloaded after ~30 s idle, so an undo buffer held
       // here would silently vanish while the Undo link is still showing.
+      const now = Date.now();
       const removed = [];
       for (const url of message.urls || []) {
         if (cache.history[url]) {
           removed.push(cache.history[url]);
           delete cache.history[url];
         }
+        for (const rec of Object.values(cache.openTabs)) {
+          if (rec.url === url) {
+            rec.firstSeenAt = now;
+            rec.lastSeenAt = now;
+          }
+        }
       }
-      await saveState(['history']);
+      await saveState(['history', 'openTabs']);
       broadcast('state-changed');
       return { removed };
     }

@@ -13,12 +13,15 @@ export default {
   openSidebarLabel: "Открыть в боковой панели",
 
   // Views and sort
-  viewClosed: "Закрытые",
-  viewOpen: "Открытые",
-  viewClosedTitle: "Вкладки, которые были открыты много дней и закрыты",
-  viewOpenTitle: "Вкладки, открытые сейчас",
+  viewAll: "Все",
+  viewNew: "Новые",
+  viewHistory: "История",
+  viewAllTitle: "Все вкладки: новые и в истории",
+  viewNewTitle: "Открытые вкладки, которых ещё нет в истории",
+  viewHistoryTitle: "Вкладки в истории: открытые {0}+ дн. или добавленные кнопкой +",
   sortLabel: "Сортировка",
-  sortName: "Название",
+  sortTitle: "Название",
+  sortUrl: "URL",
   sortOpened: "Открыта",
   sortDuration: "Длительность",
   sortClosed: "Закрыта",
@@ -26,17 +29,21 @@ export default {
   sortDesc: "По убыванию",
 
   // Empty states
-  welcomeClosed: "Вкладки, открытые {0}+ дн., появятся здесь, когда их закроют.",
-  welcomeOpen: "Нет отслеживаемых открытых вкладок.",
+  welcomeHistory: "Вкладки, открытые {0}+ дн., хранятся здесь — открытые и закрытые. Добавить раньше можно кнопкой +.",
+  welcomeNew: "Нет новых открытых вкладок.",
   noMatches: "Ничего не найдено.",
 
   // Rows
-  rowOpenFor: "открыта {0}",
-  rowClosedAgo: "закрыта {0} назад",
+  rowSince: "с {0}",
+  rowOpenedAt: "Открыта: {0}",
+  rowClosedAt: "Закрыта: {0}",
+  rowInHistory: "В истории",
+  rowNotInHistory: "Ещё не в истории",
   rowReopen: "Нажмите, чтобы открыть снова",
   rowGoToTab: "Нажмите, чтобы перейти к вкладке",
   rowFilterByDomain: "Фильтровать по этому домену",
-  actionRemove: "Убрать из истории",
+  actionAdd: "Добавить в историю",
+  actionRemove: "Убрать из истории (счёт времени начнётся с нуля)",
 
   // Settings panel
   settingsMinDays: "Дней открыта, прежде чем попасть в историю",
@@ -55,6 +62,7 @@ export default {
   importCancel: "Отмена",
 
   // Status messages
+  statusAdded: "Добавлено в историю",
   statusExported: "Экспортировано записей: {0}",
   statusImported: "Импорт ({0}): записей в истории — {1}",
   statusRemovedOne: "Удалена 1 запись",

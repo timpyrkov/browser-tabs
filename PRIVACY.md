@@ -27,7 +27,7 @@ The following is stored in the browser's local extension storage, on disk, and n
 - **Open-tab tracker** — for each open tab: its address, title, icon address, window, and when the extension first and last saw it open. This is needed because browsers do not record when a tab was opened.
 - **History** — for each tab that stayed open at least the configured number of days (default 7): its address, title, icon address, site name, when it was first seen, when it was last seen open (for a closed tab, when it was closed), and whether it is open now.
 - **Settings** — minimum number of days, private/pinned exclusion, stop list, interface language and theme.
-- **View preferences** — the search text, the selected view (Closed / Open) and the sort order.
+- **View preferences** — the search text, the selected filter (All / New / History) and the sort order.
 
 ## What is kept and what is erased
 
@@ -36,9 +36,10 @@ The following is stored in the browser's local extension storage, on disk, and n
 | Where it is stored | Extension storage, on disk | Extension storage, on disk | Extension storage, on disk |
 | Closing and reopening the panel | kept | kept | kept |
 | Restarting the browser | kept | kept | kept (matched to the restored tabs) |
-| Pressing × on an entry | kept | **that entry erased** (Undo available for a few seconds) | kept |
+| Pressing **+** on a new tab | kept | that tab **added** | kept |
+| Pressing the trash button on an entry | kept | **that entry erased** (Undo available for a few seconds) | that URL's open tabs count from zero again |
 | Closing a tab | kept | kept (the tab is recorded if it was open long enough) | **that tab erased** |
-| Adding a site to the stop list | kept | kept (remove its entries with ×) | **that site's tabs erased** |
+| Adding a site to the stop list | kept | kept (remove its entries with the trash button) | **that site's tabs erased** |
 | Import with **Replace** | kept | **replaced** by the file | kept |
 | Uninstalling the extension | **erased** | **erased** | **erased** |
 

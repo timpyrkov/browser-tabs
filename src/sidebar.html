@@ -9,11 +9,24 @@
   <script src="theme.js"></script>
   <script type="module" src="sidebar.js"></script>
   <style>
-    /* Override the shared body layout meant for popup/options cards. */
+    /* Pin the document to exactly the window, so the page itself never
+       scrolls and only the list does. The shared body rule (meant for
+       popup/options cards) has min-height: 100vh plus padding, which made the
+       document 2rem taller than the window: an outer scrollbar, and the
+       status line with its Undo pushed below the edge. */
+    html {
+      height: 100%;
+      overflow: hidden;
+    }
+
     body {
       display: block;
       margin: 0;
       padding: 1rem;
+      box-sizing: border-box;   /* the padding counts inside the 100% */
+      height: 100%;
+      min-height: 0;            /* cancel the shared min-height: 100vh */
+      overflow: hidden;
       background-color: var(--background);
       color: var(--foreground);
       font-size: 14px;
@@ -21,13 +34,11 @@
       min-width: 0;
     }
 
-    /* Full height minus the body padding, so the status line (and its Undo)
-       at the bottom of the list is never pushed below the window edge. */
     .sidebar-page {
       display: flex;
       flex-direction: column;
       width: 100%;
-      height: calc(100vh - 2rem);
+      height: 100%;
       box-sizing: border-box;
       overflow: hidden;
     }
@@ -135,7 +146,7 @@
       margin-left: 1.2em;
     }
 
-    /* Second toolbar line: Open / Closed view and the sort controls. */
+    /* Second toolbar line: History / New / All filters and the sort controls. */
     .view-row {
       width: 100%;
       order: 10;
@@ -159,7 +170,7 @@
       flex-shrink: 0;
     }
 
-    /* Open / Closed and the sort direction are gold buttons (the shared
+    /* History / New / All and the sort direction are gold buttons (the shared
        .btn-green is the gold gradient, as on Browser Images' Download): the
        selected one with a dark label, the other keeping its gold fill with a
        grey label (same look as a disabled .btn, see styles.css), but still
@@ -219,10 +230,14 @@
       font-size: 14px;
     }
 
-    /* Collapsible settings panel inside the toolbar (twin-project pattern). */
+    /* Collapsible settings panel inside the toolbar (twin-project pattern).
+       The page no longer scrolls, so in a short window it scrolls itself
+       rather than being cut off. */
     .settings-panel {
       width: 100%;
       order: 11;
+      max-height: 60vh;
+      overflow-y: auto;
       box-sizing: border-box;
       margin-top: 0.5em;
       padding: 0.75em 0.9em;
@@ -396,40 +411,44 @@
       text-overflow: ellipsis;
     }
 
-    /* How long the tab stayed open: the importance signal, so it gets the
-       accent colour. Tabs not yet past the threshold are muted. */
+    /* How long the tab stayed open, coloured by status with the palette's two
+       accents: gold = already in history, green = not yet. The light theme
+       uses the dark variants, since the mid tones are low-contrast there. */
     .log-status {
       font-size: 12px;
       font-weight: 600;
       flex-shrink: 0;
       white-space: nowrap;
-      color: var(--primary-1);
     }
 
-    .log-status.status-young {
-      color: var(--text-secondary);
-      font-weight: 400;
-    }
+    .status-history { color: var(--primary-1); }
+    .status-new { color: var(--secondary-3); }
+    :root[data-theme="light"] .status-history { color: var(--primary-dark); }
+    :root[data-theme="light"] .status-new { color: var(--secondary-dark); }
 
+    /* Square row action ("+" add / trash remove): transparent, mid-neutral
+       edge, icon in currentColor. */
     .row-btn {
       flex-shrink: 0;
-      width: 22px;
-      height: 22px;
+      width: 26px;
+      height: 26px;
       padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       background: transparent;
-      border: none;
-      border-radius: 4px;
+      border: 1px solid var(--neutral-6);
+      border-radius: 6px;
       color: var(--text-secondary);
-      font-size: 15px;
       cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
     }
 
-    .row-btn:hover {
-      background: var(--neutral-4);
-      color: var(--color-error);
+    .row-btn:hover,
+    .row-btn:focus-visible {
+      border-color: var(--primary-1);
+      color: var(--foreground);
+      outline: none;
     }
 
     .welcome-text {
@@ -525,8 +544,9 @@
       <button id="themeToggle" class="theme-toggle toolbar-group-gap" title="Toggle theme">&#9728;&#65039;</button>
 
       <div class="view-row" id="viewRow">
-        <button class="btn btn-green btn-sm" data-view="open" id="viewOpenBtn"><span id="viewOpenLabel">Open</span> <span class="count" id="countOpen"></span></button>
-        <button class="btn btn-green btn-sm" data-view="closed" id="viewClosedBtn"><span id="viewClosedLabel">Closed</span> <span class="count" id="countClosed"></span></button>
+        <button class="btn btn-green btn-sm" data-view="history" id="viewHistoryBtn"><span id="viewHistoryLabel">History</span> <span class="count" id="countHistory"></span></button>
+        <button class="btn btn-green btn-sm" data-view="new" id="viewNewBtn"><span id="viewNewLabel">New</span> <span class="count" id="countNew"></span></button>
+        <button class="btn btn-green btn-sm" data-view="all" id="viewAllBtn"><span id="viewAllLabel">All</span> <span class="count" id="countAll"></span></button>
         <div class="sort-group">
           <select id="sortSelect" title="Sort"></select>
           <button class="btn btn-green icon-btn sort-dir" data-dir="asc" id="sortAscBtn" title="Ascending">&#8593;</button>

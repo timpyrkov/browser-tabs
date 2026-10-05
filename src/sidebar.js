@@ -12,12 +12,32 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 (function () {
   const brw = typeof browser !== 'undefined' ? browser : chrome;
   const Logic = window.TabsLogic;
-  const VIEWS = ['open', 'closed'];
-  // Sort keys offered per view (an open tab has no close time yet), and the
-  // starting order of each view.
-  const VIEW_SORT_KEYS = { open: ['name', 'opened', 'duration'], closed: ['name', 'opened', 'duration', 'closed'] };
-  const DEFAULT_SORT = { open: { key: 'duration', dir: 'desc' }, closed: { key: 'closed', dir: 'desc' } };
-  const SORT_LABEL_KEYS = { name: 'sortName', opened: 'sortOpened', duration: 'sortDuration', closed: 'sortClosed' };
+  // Three filters over one list: 'history' (URLs in history, open or closed),
+  // 'new' (open tabs not yet in history) and 'all' (both).
+  const VIEWS = ['history', 'new', 'all'];
+  // Sort keys offered per view (a new tab is always open, so it has no close
+  // time), and the starting order of each view.
+  const VIEW_SORT_KEYS = {
+    all: ['title', 'url', 'opened', 'duration', 'closed'],
+    new: ['title', 'url', 'opened', 'duration'],
+    history: ['title', 'url', 'opened', 'duration', 'closed'],
+  };
+  const DEFAULT_SORT = {
+    all: { key: 'duration', dir: 'desc' },
+    new: { key: 'duration', dir: 'desc' },
+    history: { key: 'closed', dir: 'desc' },
+  };
+  // Views saved by the previous version, which had Open / Closed lists.
+  const LEGACY_VIEWS = { open: 'new', closed: 'history' };
+  const SORT_LABEL_KEYS = {
+    title: 'sortTitle', url: 'sortUrl', opened: 'sortOpened', duration: 'sortDuration', closed: 'sortClosed',
+  };
+
+  // Row button icons, drawn with currentColor so they follow the theme.
+  const ICON_PLUS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">'
+    + '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">'
+    + '<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 
   // Bound to the active language so call sites stay short.
   function t(key, ...args) {
@@ -26,6 +46,21 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
   function fmt(ms) {
     return Logic.formatDuration(ms, durationUnits(state.settings.uiLang || 'en'));
+  }
+
+  // Compact local date-time for a row ("04.10 09:12"; the year is added when
+  // it is not the current one) and a full one for the tooltip. Both follow
+  // the interface language's date order; the compact one always uses a
+  // 24-hour clock, since "AM/PM" alone overflows a narrow sidebar.
+  function fmtDate(ts) {
+    const date = new Date(ts);
+    const options = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+    if (date.getFullYear() !== new Date().getFullYear()) options.year = '2-digit';
+    return date.toLocaleString(state.settings.uiLang || undefined, options);
+  }
+
+  function fmtDateFull(ts) {
+    return new Date(ts).toLocaleString(state.settings.uiLang || undefined, { dateStyle: 'medium', timeStyle: 'short' });
   }
 
   // ---------------------------------------------------------------------------
@@ -38,15 +73,16 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     settings: { ...DEFAULT_SETTINGS },
     prefs: {
       query: '',
-      view: 'closed',     // open | closed
-      sort: { open: { ...DEFAULT_SORT.open }, closed: { ...DEFAULT_SORT.closed } },
+      view: 'history',    // all | new | history
+      sort: Object.fromEntries(VIEWS.map((view) => [view, { ...DEFAULT_SORT[view] }])),
     },
     pendingImport: null,  // { fileName, entries }
   };
 
   const els = {};
   ['searchInput', 'searchClear', 'settingsBtn', 'themeToggle', 'uiLangSelect',
-   'viewClosedBtn', 'viewOpenBtn', 'viewClosedLabel', 'viewOpenLabel', 'countClosed', 'countOpen',
+   'viewAllBtn', 'viewNewBtn', 'viewHistoryBtn', 'viewAllLabel', 'viewNewLabel', 'viewHistoryLabel',
+   'countAll', 'countNew', 'countHistory',
    'sortSelect', 'sortAscBtn', 'sortDescBtn', 'settingsPanel', 'minDays', 'minDaysLabel', 'excludePrivate', 'excludePrivateLabel',
    'excludePinned', 'excludePinnedLabel', 'excludeList', 'excludeListLabel', 'backupLabel',
    'exportBtn', 'importBtn', 'importFile', 'importModal', 'importPrompt',
@@ -70,6 +106,8 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
 
   // Removal is the one destructive action here, so it always comes with a way
   // back rather than a confirmation prompt people learn to click through.
+  // (Undo brings the entry and its count back; a tab that stayed open keeps
+  // counting from the restored start.)
   function showUndo(removed) {
     showStatus(t('statusRemovedOne'), false, 12000);
     const undo = document.createElement('button');
@@ -108,9 +146,10 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
         dir: Logic.SORT_DIRS.includes(s.dir) ? s.dir : DEFAULT_SORT[view].dir,
       };
     }
+    const view = LEGACY_VIEWS[saved.view] || saved.view;
     state.prefs = {
       query: typeof saved.query === 'string' ? saved.query : '',
-      view: VIEWS.includes(saved.view) ? saved.view : 'closed',
+      view: VIEWS.includes(view) ? view : 'history',
       sort,
     };
   }
@@ -144,40 +183,52 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   // Rows
   // ---------------------------------------------------------------------------
 
-  function closedEntries(now) {
-    const entries = state.history.filter((entry) => !entry.isOpen && Logic.matchesQuery(entry, state.prefs.query));
-    const { key, dir } = state.prefs.sort.closed;
-    return Logic.sortEntries(entries, key, dir, now);
-  }
-
-  // One row per open URL (the oldest tab defines its age). A URL already in
-  // history uses the history start, which includes a continued count after a
-  // short close-and-reopen. Items are shaped like open history entries so
-  // the same sort applies.
-  function openItems(now) {
-    const historyByUrl = new Map(state.history.map((entry) => [entry.url, entry]));
+  // One list item per URL, shaped like a history entry so one sort applies:
+  //  - every history entry ('history'), open or closed; while open, its
+  //    count runs from the entry's start, which includes earlier breaks;
+  //  - every open URL not in history ('new'); the oldest tab defines its age.
+  // `rec` is the open tab to switch to, if any.
+  function buildItems(now) {
+    const openByUrl = Logic.oldestRecordByUrl(state.openTabs);
     const items = [];
-    for (const rec of Object.values(Logic.oldestRecordByUrl(state.openTabs))) {
-      const entry = historyByUrl.get(rec.url);
-      const item = {
+    for (const entry of state.history) {
+      const rec = entry.isOpen ? openByUrl[entry.url] || null : null;
+      items.push({
+        kind: 'history',
         rec,
-        title: rec.title || (entry && entry.title) || '',
+        title: (rec && rec.title) || entry.title || '',
+        url: entry.url,
+        domain: entry.domain || Logic.domainOf(entry.url),
+        favIconUrl: (rec && rec.favIconUrl) || entry.favIconUrl || '',
+        firstSeenAt: entry.firstSeenAt,
+        lastSeenOpenAt: entry.isOpen ? now : entry.lastSeenOpenAt,
+        isOpen: Boolean(entry.isOpen),
+      });
+    }
+    const inHistory = new Set(state.history.map((entry) => entry.url));
+    for (const rec of Object.values(openByUrl)) {
+      if (inHistory.has(rec.url)) continue;
+      items.push({
+        kind: 'new',
+        rec,
+        title: rec.title || '',
         url: rec.url,
         domain: Logic.domainOf(rec.url),
-        favIconUrl: rec.favIconUrl || (entry && entry.favIconUrl) || '',
-        firstSeenAt: entry ? entry.firstSeenAt : rec.firstSeenAt,
+        favIconUrl: rec.favIconUrl || '',
+        firstSeenAt: rec.firstSeenAt,
         lastSeenOpenAt: now,
         isOpen: true,
-      };
-      item.ageMs = Logic.entryDurationMs(item, now);
-      if (Logic.matchesQuery(item, state.prefs.query)) items.push(item);
+      });
     }
-    const { key, dir } = state.prefs.sort.open;
-    return Logic.sortEntries(items, key, dir, now);
+    return items;
   }
 
-  function uniqueOpenCount() {
-    return Object.keys(Logic.oldestRecordByUrl(state.openTabs)).length;
+  function visibleItems(items, now) {
+    const view = state.prefs.view;
+    const shown = items.filter((item) => (view === 'all' || item.kind === view)
+      && Logic.matchesQuery(item, state.prefs.query));
+    const { key, dir } = currentSort();
+    return Logic.sortEntries(shown, key, dir, now);
   }
 
   // A src-less <img> draws a broken-image frame, so rows without a favicon get
@@ -206,25 +257,25 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     render();
   }
 
-  function makeInfoBlock(title, url, timingText, timingTitle) {
+  function makeInfoBlock(item) {
     const info = document.createElement('div');
     info.className = 'log-info';
 
     const titleEl = document.createElement('div');
     titleEl.className = 'log-title';
-    titleEl.textContent = title || url;
+    titleEl.textContent = item.title || item.url;
     info.appendChild(titleEl);
 
     // Domain stays whole and clickable (filters by it); the rest of the URL
     // is muted and middle-truncated, so pages on one site stay distinguishable.
-    const { domain, rest } = Logic.splitUrlForDisplay(url);
+    const { domain, rest } = Logic.splitUrlForDisplay(item.url);
     const urlEl = document.createElement('div');
     urlEl.className = 'log-url';
-    urlEl.title = url;
+    urlEl.title = item.url;
 
     const domainEl = document.createElement('span');
     domainEl.className = 'log-domain';
-    domainEl.textContent = domain || url;
+    domainEl.textContent = domain || item.url;
     domainEl.title = t('rowFilterByDomain');
     domainEl.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -240,25 +291,59 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     }
     info.appendChild(urlEl);
 
-    if (timingText) {
-      const timing = document.createElement('div');
-      timing.className = 'log-timing';
-      timing.textContent = timingText;
-      if (timingTitle) timing.title = timingTitle;
-      info.appendChild(timing);
+    // Open and close time as dates: "04.10 09:12 → 05.10 18:40" for a closed
+    // tab, "since 04.10 09:12" for an open one. Full dates in the tooltip.
+    const timing = document.createElement('div');
+    timing.className = 'log-timing';
+    if (item.isOpen) {
+      timing.textContent = t('rowSince', fmtDate(item.firstSeenAt));
+      timing.title = t('rowOpenedAt', fmtDateFull(item.firstSeenAt));
+    } else {
+      timing.textContent = `${fmtDate(item.firstSeenAt)} → ${fmtDate(item.lastSeenOpenAt)}`;
+      timing.title = `${t('rowOpenedAt', fmtDateFull(item.firstSeenAt))}\n${t('rowClosedAt', fmtDateFull(item.lastSeenOpenAt))}`;
     }
+    info.appendChild(timing);
     return info;
   }
 
-  function makeStatus(text, young) {
+  // Duration only (no "open" word, to save width), coloured by status:
+  // gold = in history, green = not yet.
+  function makeStatus(item, now) {
     const status = document.createElement('span');
-    status.className = 'log-status' + (young ? ' status-young' : '');
-    status.textContent = text;
+    status.className = `log-status status-${item.kind}`;
+    status.textContent = fmt(Logic.entryDurationMs(item, now));
+    status.title = t(item.kind === 'history' ? 'rowInHistory' : 'rowNotInHistory');
     return status;
   }
 
-  async function focusOrOpen(rec) {
-    if (rec.tabId != null) {
+  function makeRowButton(icon, title, onClick) {
+    const button = document.createElement('button');
+    button.className = 'row-btn';
+    button.innerHTML = icon;
+    button.title = title;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  async function addToHistory(item) {
+    const response = await sendMessage({ action: 'addEntry', url: item.url });
+    await refresh();
+    if (response && response.error) showStatus(response.error, true);
+    else showStatus(t('statusAdded'));
+  }
+
+  async function removeFromHistory(item) {
+    const response = await sendMessage({ action: 'deleteEntries', urls: [item.url] });
+    await refresh();
+    if (response && response.removed && response.removed.length) showUndo(response.removed);
+  }
+
+  async function focusOrOpen(item) {
+    const rec = item.rec;
+    if (rec && rec.tabId != null) {
       try {
         await brw.tabs.update(rec.tabId, { active: true });
         if (rec.windowId != null) {
@@ -267,49 +352,20 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
         return;
       } catch (e) { /* stale tab id — fall through to opening a new tab */ }
     }
-    await brw.tabs.create({ url: rec.url });
+    await brw.tabs.create({ url: item.url });
   }
 
-  function renderClosedRow(entry, now) {
+  function renderRow(item, now) {
     const row = document.createElement('div');
     row.className = 'log-row';
-    row.title = t('rowReopen');
-
-    const lang = state.settings.uiLang || undefined;
-    const closedAt = new Date(entry.lastSeenOpenAt);
-    row.appendChild(makeFavicon(entry.favIconUrl));
-    row.appendChild(makeInfoBlock(
-      entry.title, entry.url,
-      t('rowClosedAgo', fmt(Math.max(0, now - entry.lastSeenOpenAt))),
-      closedAt.toLocaleString(lang)));
-    row.appendChild(makeStatus(t('rowOpenFor', fmt(Logic.entryDurationMs(entry, now))), false));
-
-    const remove = document.createElement('button');
-    remove.className = 'row-btn';
-    remove.textContent = '×';
-    remove.title = t('actionRemove');
-    remove.addEventListener('click', async (event) => {
-      event.stopPropagation();
-      const response = await sendMessage({ action: 'deleteEntries', urls: [entry.url] });
-      await refresh();
-      if (response && response.removed && response.removed.length) showUndo(response.removed);
-    });
-    row.appendChild(remove);
-
-    row.addEventListener('click', () => brw.tabs.create({ url: entry.url }));
-    return row;
-  }
-
-  function renderOpenRow(item) {
-    const row = document.createElement('div');
-    row.className = 'log-row';
-    row.title = t('rowGoToTab');
-
-    const young = item.ageMs < (state.settings.minDays || 0) * Logic.DAY_MS;
+    row.title = t(item.isOpen ? 'rowGoToTab' : 'rowReopen');
     row.appendChild(makeFavicon(item.favIconUrl));
-    row.appendChild(makeInfoBlock(item.title, item.url, '', ''));
-    row.appendChild(makeStatus(t('rowOpenFor', fmt(item.ageMs)), young));
-    row.addEventListener('click', () => focusOrOpen(item.rec));
+    row.appendChild(makeInfoBlock(item));
+    row.appendChild(makeStatus(item, now));
+    row.appendChild(item.kind === 'history'
+      ? makeRowButton(ICON_TRASH, t('actionRemove'), () => removeFromHistory(item))
+      : makeRowButton(ICON_PLUS, t('actionAdd'), () => addToHistory(item)));
+    row.addEventListener('click', () => focusOrOpen(item));
     return row;
   }
 
@@ -320,11 +376,15 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
   function render() {
     const now = Date.now();
     const view = state.prefs.view;
+    const items = buildItems(now);
+    const historyCount = items.filter((item) => item.kind === 'history').length;
 
-    els.countClosed.textContent = state.history.filter((entry) => !entry.isOpen).length;
-    els.countOpen.textContent = uniqueOpenCount();
-    els.viewClosedBtn.classList.toggle('active', view === 'closed');
-    els.viewOpenBtn.classList.toggle('active', view === 'open');
+    els.countAll.textContent = items.length;
+    els.countNew.textContent = items.length - historyCount;
+    els.countHistory.textContent = historyCount;
+    els.viewAllBtn.classList.toggle('active', view === 'all');
+    els.viewNewBtn.classList.toggle('active', view === 'new');
+    els.viewHistoryBtn.classList.toggle('active', view === 'history');
     populateSortOptions();
     const sort = currentSort();
     els.sortSelect.value = sort.key;
@@ -333,23 +393,14 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     els.searchClear.hidden = !state.prefs.query;
 
     els.list.innerHTML = '';
-    let shown = 0;
-    if (view === 'closed') {
-      for (const entry of closedEntries(now)) {
-        els.list.appendChild(renderClosedRow(entry, now));
-        shown++;
-      }
-    } else {
-      for (const item of openItems(now)) {
-        els.list.appendChild(renderOpenRow(item));
-        shown++;
-      }
-    }
+    const shown = visibleItems(items, now);
+    shown.forEach((item) => els.list.appendChild(renderRow(item, now)));
 
     let welcome = '';
-    if (!shown) {
+    if (!shown.length) {
       if (state.prefs.query.trim()) welcome = t('noMatches');
-      else welcome = view === 'closed' ? t('welcomeClosed', state.settings.minDays) : t('welcomeOpen');
+      else if (view === 'new') welcome = t('welcomeNew');
+      else welcome = t('welcomeHistory', state.settings.minDays);
     }
     els.welcomeText.textContent = welcome;
     els.welcomeText.hidden = !welcome;
@@ -405,10 +456,12 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
     els.settingsBtn.title = t('settingsLabel');
     els.themeToggle.title = t('themeToggleLabel');
 
-    els.viewClosedLabel.textContent = t('viewClosed');
-    els.viewOpenLabel.textContent = t('viewOpen');
-    els.viewClosedBtn.title = t('viewClosedTitle');
-    els.viewOpenBtn.title = t('viewOpenTitle');
+    els.viewAllLabel.textContent = t('viewAll');
+    els.viewNewLabel.textContent = t('viewNew');
+    els.viewHistoryLabel.textContent = t('viewHistory');
+    els.viewAllBtn.title = t('viewAllTitle');
+    els.viewNewBtn.title = t('viewNewTitle');
+    els.viewHistoryBtn.title = t('viewHistoryTitle', state.settings.minDays);
     els.sortSelect.title = t('sortLabel');
     els.sortAscBtn.title = t('sortAsc');
     els.sortDescBtn.title = t('sortDesc');
@@ -450,6 +503,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       state.settings = response.settings;
     }
     populateSettingsForm();
+    applyStaticLabels();   // the History tooltip names the day threshold
     refresh();
   }
 
@@ -537,7 +591,7 @@ import { t as translate, detectBrowserLanguage, durationUnits, UI_STRINGS, UI_FL
       render();   // durations and row text carry translated units too
     });
 
-    [els.viewClosedBtn, els.viewOpenBtn].forEach((button) => {
+    [els.viewAllBtn, els.viewNewBtn, els.viewHistoryBtn].forEach((button) => {
       button.addEventListener('click', () => {
         state.prefs.view = button.dataset.view;
         savePrefs();
