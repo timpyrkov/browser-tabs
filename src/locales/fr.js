@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "Supprimer tout l’historique ({0}) ? Cette action est irréversible.",
   deleteAllConfirm: "Supprimer",
   noticeLabel: "IMPORTANT :",
-  noticeText: "« Supprimer tout mon historique » efface l’historique enregistré par cette extension. L’extension n’a pas accès à l’historique du navigateur : elle ne peut donc pas reconstituer ce que vous supprimez, et les entrées sont perdues définitivement. Exportez d’abord une sauvegarde si vous pourriez en avoir besoin.",
+  noticeText: "« Supprimer tout mon historique » efface l’historique enregistré par cette extension. La désinstaller l’efface aussi, alors qu’une mise à jour vers une nouvelle version le conserve. L’extension n’a pas accès à l’historique du navigateur : elle ne peut donc pas reconstituer ce qui est effacé. Exportez d’abord une sauvegarde si vous pourriez en avoir besoin.",
 
   // Capacity line (bottom of the panel)
   capacityLine: "Historique : {0} / {1} · {2}",

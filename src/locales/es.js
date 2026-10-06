@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "¿Borrar todo el historial ({0})? No se puede deshacer.",
   deleteAllConfirm: "Borrar",
   noticeLabel: "IMPORTANTE:",
-  noticeText: "«Borrar todo mi historial» elimina el historial guardado por esta extensión. La extensión no tiene acceso al historial del navegador, así que no puede reconstruir lo que borres: las entradas se pierden para siempre. Exporta antes una copia de seguridad si podrías necesitarlas.",
+  noticeText: "«Borrar todo mi historial» elimina el historial guardado por esta extensión. Desinstalar la extensión también lo elimina; actualizarla a una nueva versión lo conserva. La extensión no tiene acceso al historial del navegador, así que no puede reconstruir lo borrado: exporta antes una copia de seguridad si podrías necesitarla.",
 
   // Capacity line (bottom of the panel)
   capacityLine: "Historial: {0} / {1} · {2}",

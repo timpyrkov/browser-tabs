@@ -83,6 +83,12 @@ extension sidebar)
   `pd.read_json(path, lines=True)` in Python) and import it back (**Append** or
   **Replace**). **Delete all my history** (in settings, after a confirmation) wipes the
   extension's own history for good; it never touches the browser's history.
+- **Updates keep your history; uninstalling erases it.** A new version of the extension
+  keeps everything, but the browser deletes an extension's data when it is removed, and
+  this extension keeps no copy anywhere else. **Export a backup before uninstalling**,
+  and import it after reinstalling. (In development, Firefox's "Load Temporary Add-on"
+  counts as uninstalled when Firefox quits; Chrome's "Load unpacked" keeps the history on
+  **Reload** but starts empty if loaded from a different folder.)
 - **Sidebar in Firefox and Opera, side panel in Chrome.** Chrome and Opera builds also
   carry a toolbar popup with the same UI as a fallback for browsers without an extension
   sidebar, e.g. **Yandex Browser** installing from the Chrome or Opera store.

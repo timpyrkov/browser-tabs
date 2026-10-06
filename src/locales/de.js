@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "Den gesamten Verlauf ({0}) löschen? Das kann nicht rückgängig gemacht werden.",
   deleteAllConfirm: "Löschen",
   noticeLabel: "WICHTIG:",
-  noticeText: "„Meinen gesamten Verlauf löschen“ entfernt den Verlauf, den diese Erweiterung gespeichert hat. Die Erweiterung hat keinen Zugriff auf den Browserverlauf und kann Gelöschtes daher nicht wiederherstellen – die Einträge sind endgültig weg. Exportiere vorher eine Sicherung, falls du sie noch brauchst.",
+  noticeText: "„Meinen gesamten Verlauf löschen“ entfernt den Verlauf, den diese Erweiterung gespeichert hat. Auch das Deinstallieren der Erweiterung löscht ihn, ein Update auf eine neue Version behält ihn dagegen. Die Erweiterung hat keinen Zugriff auf den Browserverlauf und kann Gelöschtes daher nicht wiederherstellen – exportiere vorher eine Sicherung, falls du sie noch brauchst.",
 
   // Capacity line (bottom of the panel)
   capacityLine: "Verlauf: {0} / {1} · {2}",

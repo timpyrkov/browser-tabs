@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "要删除全部历史（{0} 条）吗？此操作无法撤销。",
   deleteAllConfirm: "删除",
   noticeLabel: "重要：",
-  noticeText: "“删除我的全部历史”会清除此扩展保存的历史。此扩展无法访问浏览器的历史记录，因此无法重建已删除的内容，这些记录将永久丢失。如果以后可能需要，请先导出备份。",
+  noticeText: "“删除我的全部历史”会清除此扩展保存的历史。卸载此扩展同样会清除历史，而更新到新版本则会保留。此扩展无法访问浏览器的历史记录，因此无法重建已清除的内容。如果以后可能需要，请先导出备份。",
 
   // Capacity line (bottom of the panel)
   capacityLine: "历史：{0} / {1} · {2}",

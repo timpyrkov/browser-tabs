@@ -42,13 +42,14 @@ The following is stored in the browser's local extension storage, on disk, and n
 | Where it is stored | Extension storage, on disk | Extension storage, on disk | Extension storage, on disk |
 | Closing and reopening the panel | kept | kept | kept |
 | Restarting the browser | kept | kept | kept (matched to the restored tabs) |
+| Updating the extension to a new version | kept | **kept** | kept |
 | Pressing **+** on a new tab | kept | that tab **added** | kept |
 | Pressing the trash button on an entry | kept | **that entry erased** (Undo available for a few seconds) | that URL's open tabs count from zero again |
 | Closing a tab | kept | kept (the tab is recorded if it was open long enough) | **that tab erased** |
 | Adding a site to the stop list | kept | kept (remove its entries with the trash button) | **that site's tabs erased** |
 | Pressing **Delete all my history** (after confirming) | kept | **all erased**, no Undo | open tabs count from zero again |
 | Import with **Replace** | kept | **replaced** by the file | kept |
-| Uninstalling the extension | **erased** | **erased** | **erased** |
+| Uninstalling the extension | **erased** | **erased** (export a backup first to keep it) | **erased** |
 
 ## Export and import
 

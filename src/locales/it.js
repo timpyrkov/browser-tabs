@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "Eliminare tutta la cronologia ({0})? L’operazione non si può annullare.",
   deleteAllConfirm: "Elimina",
   noticeLabel: "IMPORTANTE:",
-  noticeText: "«Elimina tutta la mia cronologia» cancella la cronologia salvata da questa estensione. L’estensione non ha accesso alla cronologia del browser, quindi non può ricostruire ciò che elimini: le voci sono perse per sempre. Esporta prima un backup se potrebbero servirti.",
+  noticeText: "«Elimina tutta la mia cronologia» cancella la cronologia salvata da questa estensione. Anche disinstallare l’estensione la cancella, mentre aggiornarla a una nuova versione la conserva. L’estensione non ha accesso alla cronologia del browser, quindi non può ricostruire ciò che viene cancellato: esporta prima un backup se potrebbe servirti.",
 
   // Capacity line (bottom of the panel)
   capacityLine: "Cronologia: {0} / {1} · {2}",

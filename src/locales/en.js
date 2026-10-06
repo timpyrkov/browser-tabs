@@ -60,7 +60,7 @@ export default {
   deleteAllPrompt: "Delete everything in history ({0})? This cannot be undone.",
   deleteAllConfirm: "Delete",
   noticeLabel: "IMPORTANT:",
-  noticeText: "“Delete all my history” erases the history stored by this extension. The extension has no access to your browser’s own history, so it cannot rebuild what you delete — the entries are gone for good. Export a backup first if you may need them later.",
+  noticeText: "“Delete all my history” erases the history stored by this extension. Uninstalling the extension erases it too, while updating to a new version keeps it. The extension has no access to your browser’s own history, so it cannot rebuild what is erased — export a backup first if you may need it later.",
 
   // Capacity line (bottom of the panel)
   capacityLine: "History: {0} / {1} · {2}",
